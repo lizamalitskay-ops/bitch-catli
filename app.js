@@ -53,6 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
+const APP_VERSION = 3;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -719,7 +720,7 @@ window.Set_ = {
         <button class="btn ghost sm" onclick="closeModal();Bd.env()">+ Новий конверт</button></div>
       <div class="card"><div class="card-h"><h3>Резервна копія</h3></div><p class="muted tiny" style="margin-bottom:8px">Файл з усіма твоїми даними, про всяк випадок.</p>
         <button class="btn ghost sm" onclick="Set_.export()">⬇ Завантажити</button> <label class="btn ghost sm">⬆ Відновити<input type="file" accept=".json" class="hidden" onchange="Set_.import(this.files[0])"></label></div>
-      <div class="m-foot"><button class="btn" onclick="Set_.save()">Готово</button></div>`);
+      <p class="muted tiny" style="margin-top:12px">Версія додатку: ${APP_VERSION}</p><div class="m-foot"><button class="btn" onclick="Set_.save()">Готово</button></div>`);
   },
   save() { S.ui.theme = segVal('s-theme') || 'auto'; const b = B(); b.limits.spontan = num(val('s-lim')) || 2000; b.payday = Math.min(31, Math.max(1, parseInt(val('s-pay')) || 27)); applyTheme(); closeModal(); commit(); },
   recurring() {
@@ -1042,4 +1043,4 @@ if (!S.migrated && !S.budget.payments.length) { // одноразовий пла
 if (S.migrated && !S.ui._oneoff) { S.ui._oneoff = 1; if (today() <= '2026-11-30' && !S.budget.payments.some(p => /навчан/i.test(p.name))) S.budget.payments.push({ id: uid(), name: 'Навчання (останній платіж)', amount: 2465, date: '2026-11-30', cat: 'Навчання', envId: null, status: 'planned' }); }
 nextQuote();
 render();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => { });
