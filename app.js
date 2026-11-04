@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 3;
+const APP_VERSION = 4;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -150,8 +150,11 @@ window.App = {
 };
 
 /* ═══════════════ МОДАЛКИ / ТОСТ ═══════════════ */
-function openModal(html, onOpen) {
-  closeModal();
+// back — куди повертатись при закритті (×, Esc, клік повз), щоб вікна відкривались «одне в одному»
+let modalBack = null;
+function openModal(html, onOpen, back) {
+  const prev = $('#ov'); prev && prev.remove();
+  modalBack = back || null;
   const o = document.createElement('div');
   o.className = 'overlay'; o.id = 'ov';
   o.innerHTML = `<div class="modal" role="dialog">${html}</div>`;
@@ -160,7 +163,8 @@ function openModal(html, onOpen) {
   const f = o.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 50);
   onOpen && onOpen(o);
 }
-function closeModal() { const o = $('#ov'); o && o.remove(); }
+function closeModal() { const o = $('#ov'); o && o.remove(); const b = modalBack; modalBack = null; if (b) b(); }
+function closeAllModals() { modalBack = null; const o = $('#ov'); o && o.remove(); }
 let toastT;
 function toast(msg, undoFn) {
   const old = $('#toast'); old && old.remove(); clearTimeout(toastT);
@@ -248,7 +252,7 @@ window.T = {
       <div class="field"><label>Куди додати</label><div class="checks">
         <label><input type="checkbox" id="f-today" ${t.today ? 'checked' : ''}> ☀ На сьогодні</label>
         <label><input type="checkbox" id="f-folder" ${t.inFolder ? 'checked' : ''}> 📁 У папку (вкладка «Задачі»)</label></div></div>
-      <div class="m-foot">${id ? `<button class="btn danger" onclick="T.del('${id}');closeModal()">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="T.save('${id || ''}')">Зберегти</button></div>`);
+      <div class="m-foot">${id ? `<button class="btn danger" onclick="T.del('${id}');closeModal()">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="T.save('${id || ''}')">Зберегти</button></div>`, null, preset.back || null);
   },
   save(id) {
     const text = val('f-text'); if (!text) return toast('Напиши, що треба зробити');
@@ -369,7 +373,7 @@ window.G = {
     const cats = [...new Set(list.map(t => t.cat))];
     openModal(`<h3>🔗 Додати до цілі</h3><p class="muted small" style="margin-bottom:8px">Натисни на задачі, які належать до цієї цілі.</p>
       ${cats.map(c => `<div class="group-h"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</div>${list.filter(t => t.cat === c).map(t => `<div class="trow" onclick="findTask('${t.id}').goalId='${gid}';persist();this.remove()"><span class="check"></span><div class="body"><div class="txt">${esc(t.text)}</div>${t.goalId ? '<div class="meta"><span class="chip">зараз в іншій цілі</span></div>' : ''}</div></div>`).join('')}`).join('') || '<div class="empty">Немає задач у папках</div>'}
-      <div class="m-foot"><button class="btn" onclick="render();G.open('${gid}')">Готово</button></div>`);
+      <div class="m-foot"><button class="btn" onclick="closeModal()">Готово</button></div>`, null, () => { render(); G.open(gid); });
   },
   edit(id) {
     const g = id ? S.goals.find(x => x.id === id) : { name: '', desc: '', tier: 'medium', emoji: '' };
@@ -378,7 +382,7 @@ window.G = {
       <div class="field"><label>Опис (необов'язково)</label><input id="g-desc" value="${esc(g.desc || '')}"></div>
       <div class="field"><label>Рівень</label>${seg('g-tier', { global: '🔥 Глобальна', medium: '🌷 Середня', small: '💫 Маленька' }, g.tier)}</div>
       ${id ? '' : `<label class="checks"><label><input type="checkbox" id="g-pin" ${S.pinned.length < 3 ? 'checked' : ''}> 📌 Показувати на «Сьогодні»</label></label>`}
-      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="G.save('${id || ''}')">Зберегти</button></div>`);
+      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="G.save('${id || ''}')">Зберегти</button></div>`, null, id ? () => G.open(id) : null);
   },
   save(id) {
     const name = val('g-name'); if (!name) return toast('Назви ціль');
@@ -392,7 +396,7 @@ window.G = {
     else { if (S.pinned.length >= 3) { toast('На «Сьогодні» вже 3 цілі. Замінила найстарішу.'); S.pinned.shift(); } S.pinned.push(id); }
     commit(); G.open(id);
   },
-  done(id) { const g = S.goals.find(x => x.id === id); g.doneAt = today(); S.pinned = S.pinned.filter(x => x !== id); closeModal(); commit(); toast('Ціль досягнуто! 🎉 Ти неймовірна'); },
+  done(id) { const g = S.goals.find(x => x.id === id); g.doneAt = today(); S.pinned = S.pinned.filter(x => x !== id); closeAllModals(); commit(); toast('Ціль досягнуто! 🎉 Ти неймовірна'); },
   undone(id) { S.goals.find(x => x.id === id).doneAt = null; commit(); G.open(id); },
   del(id) {
     if (!confirm('Видалити ціль? Кроки залишаться в папках.')) return;
@@ -722,12 +726,12 @@ window.Set_ = {
         <button class="btn ghost sm" onclick="Set_.export()">⬇ Завантажити</button> <label class="btn ghost sm">⬆ Відновити<input type="file" accept=".json" class="hidden" onchange="Set_.import(this.files[0])"></label></div>
       <p class="muted tiny" style="margin-top:12px">Версія додатку: ${APP_VERSION}</p><div class="m-foot"><button class="btn" onclick="Set_.save()">Готово</button></div>`);
   },
-  save() { S.ui.theme = segVal('s-theme') || 'auto'; const b = B(); b.limits.spontan = num(val('s-lim')) || 2000; b.payday = Math.min(31, Math.max(1, parseInt(val('s-pay')) || 27)); applyTheme(); closeModal(); commit(); },
+  save() { S.ui.theme = segVal('s-theme') || 'auto'; const b = B(); b.limits.spontan = num(val('s-lim')) || 2000; b.payday = Math.min(31, Math.max(1, parseInt(val('s-pay')) || 27)); applyTheme(); closeAllModals(); commit(); },
   recurring() {
     const b = B();
     openModal(`<h3>🔁 Постійні платежі</h3><p class="muted small" style="margin-bottom:8px">Вони самі з'являються в календарі й «Найближчих оплатах» щомісяця.</p>
       ${b.recurring.map(r => `<div class="pay"><div class="body"><div>${esc(r.name)}</div><div class="tiny muted">щомісяця ${r.day}-го${r.envId && envById(r.envId) ? ' · конверт «' + esc(envById(r.envId).name) + '»' : ''}</div></div><span class="amt">${r.approx ? '~' : ''}${money(r.amount)}</span><button class="act" onclick="Set_.rec('${r.id}')">✎</button></div>`).join('') || '<div class="empty">Поки порожньо</div>'}
-      <div class="m-foot"><button class="btn ghost" onclick="Set_.open()">Назад</button><button class="btn" onclick="Set_.rec()">+ Додати</button></div>`);
+      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Назад</button><button class="btn" onclick="Set_.rec()">+ Додати</button></div>`, null, () => Set_.open());
   },
   rec(id) {
     const r = id ? B().recurring.find(x => x.id === id) : { name: '', amount: '', day: 1, cat: 'Інше', envId: '', approx: false };
@@ -736,7 +740,7 @@ window.Set_ = {
       <div class="row2"><div class="field"><label>Сума, ₴</label><input id="r-amt" inputmode="decimal" value="${r.amount}"></div><div class="field"><label>Число місяця</label><input id="r-day" inputmode="numeric" value="${r.day}"></div></div>
       <div class="row2"><div class="field"><label>Категорія</label><select id="r-cat">${opts(Object.keys(EXP_CATS), r.cat)}</select></div><div class="field"><label>Конверт</label>${envSelect(r.envId, '— без конверта —')}</div></div>
       <label class="checks"><label><input type="checkbox" id="r-approx" ${r.approx ? 'checked' : ''}> Сума орієнтовна (як комуналка)</label></label>
-      <div class="m-foot">${id ? `<button class="btn danger" onclick="Set_.delRec('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="Set_.recurring()">Назад</button><button class="btn" onclick="Set_.saveRec('${id || ''}')">Зберегти</button></div>`);
+      <div class="m-foot">${id ? `<button class="btn danger" onclick="Set_.delRec('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Назад</button><button class="btn" onclick="Set_.saveRec('${id || ''}')">Зберегти</button></div>`, null, () => Set_.recurring());
   },
   saveRec(id) {
     const b = B(); const d = { name: val('r-name'), amount: num(val('r-amt')), day: Math.min(31, Math.max(1, parseInt(val('r-day')) || 1)), cat: val('r-cat'), envId: val('f-env') || null, approx: checked('r-approx') };
