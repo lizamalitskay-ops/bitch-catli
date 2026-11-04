@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -133,14 +133,18 @@ if (!S) { S = defaultState(); migrateLocal(); }
 
 // ── синхронізація (викликається з sync.js) ──
 window.App = {
-  setSync(text, kind, user) { const el = $('#sync'); if (el) { el.textContent = text; el.className = 'sync ' + kind; } App._user = user; },
+  setSync(text, kind, user) { App._user = user; const el = $('#sync'); if (el) { el.textContent = user ? text : (kind === 'busy' ? text : 'Не увійшла · натисни, щоб увійти'); el.className = 'sync ' + (user ? kind : 'warn') + (user ? '' : ' login'); el.onclick = user ? null : () => window.Sync && Sync.signIn(); } },
+  markSynced() { if (App._user && !S.cloudSynced) { S.cloudSynced = true; try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { } } },
   needsMigration: () => !S.migrated && S.tasks.length === 0,
   migrateFromCloud(d) { if (migrateFrom(k => d[k] ?? null)) { persist(); render(); toast('Підтягнула твої дані зі старої версії 💾'); } },
   exportForSync: () => ({ _ts: S.updated || Date.now(), state: JSON.stringify(S) }),
-  onRemote(d) {
+  onRemote(d, initial) {
     const rs = safeJSON(d.state);
     if (!rs || rs.v !== 2) return;
-    if ((rs.updated || 0) > (S.updated || 0)) {
+    // Новий/очищений пристрій ще ніколи не синхронізувався: завжди беремо дані з хмари, а не перезаписуємо їх
+    const fresh = initial && App._user && !S.cloudSynced;
+    if (fresh || (rs.updated || 0) > (S.updated || 0)) {
+      if (App._user) rs.cloudSynced = true;
       const ui = S.ui; S = rs; S.ui = { ...rs.ui, view: ui.view, bsub: ui.bsub };
       try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { }
       render();

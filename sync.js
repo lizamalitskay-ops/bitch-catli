@@ -24,11 +24,13 @@ function status(text, kind) { window.App && window.App.setSync(text, kind, user)
 
 async function attach() {
   if (unsub) { unsub(); unsub = null; }
+  if (!user) { status("Не увійшла", "warn"); return; }
   const ref = docRef();
   try {
     const snap = await getDoc(ref);
     if (snap.exists()) {
-      window.App.onRemote(snap.data());
+      window.App.onRemote(snap.data(), true);
+      window.App.markSynced();
     } else {
       // Новий документ: спершу пробуємо підтягнути дані зі старої версії додатку
       if (window.App.needsMigration()) {
@@ -56,6 +58,7 @@ async function pushNow() {
   lastPushedTs = payload._ts;
   try {
     await setDoc(docRef(), payload);
+    window.App.markSynced();
     status("Збережено", "ok");
   } catch (e) {
     console.warn("push", e);
@@ -64,7 +67,7 @@ async function pushNow() {
 }
 
 window.Sync = {
-  push() { clearTimeout(pushTimer); status("Зберігаю…", "busy"); pushTimer = setTimeout(pushNow, 700); },
+  push() { if (!user) return; clearTimeout(pushTimer); status("Зберігаю…", "busy"); pushTimer = setTimeout(pushNow, 700); },
   async signIn() {
     const p = new GoogleAuthProvider();
     try { await signInWithPopup(auth, p); }
