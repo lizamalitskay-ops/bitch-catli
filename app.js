@@ -298,22 +298,32 @@ window.N = {
 };
 
 /* ═══════════════ ЦИТАТИ ═══════════════ */
-let quoteShift = 0;
+// Кожне відкриття — нова цитата; йдемо по перемішаному списку, поки не покажемо всі
 function quotes() { return [...(window.QUOTES || []), ...S.quotesExtra]; }
+function quoteOrder() {
+  const n = quotes().length;
+  let o = S.ui.qOrder;
+  if (!Array.isArray(o) || o.length !== n || (S.ui.qPos || 0) >= n) {
+    o = [...Array(n).keys()];
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    S.ui.qOrder = o; S.ui.qPos = 0;
+  }
+  return o;
+}
 function quoteOfDay() {
   const q = quotes(); if (!q.length) return null;
-  const d = parseD(today()); const doy = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
-  const i = ((doy * 37 + d.getFullYear()) + quoteShift) % q.length;
-  return q[(i + q.length) % q.length];
+  const o = quoteOrder();
+  return q[o[S.ui.qPos || 0]] || q[0];
 }
+function nextQuote() { quoteOrder(); S.ui.qPos = (S.ui.qPos || 0) + 1; quoteOrder(); try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { } }
 window.Q = {
-  next() { quoteShift++; render(); },
+  next() { nextQuote(); render(); },
   add() {
     openModal(`<h3>Своя цитата</h3><div class="field"><label>Фраза (мовою оригіналу)</label><textarea id="q-q" rows="2" autofocus></textarea></div>
       <div class="row2"><div class="field"><label>Хто каже</label><input id="q-who"></div><div class="field"><label>Звідки</label><input id="q-src" placeholder="Arcane"></div></div>
       <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="Q.save()">Додати</button></div>`);
   },
-  save() { const q = val('q-q'); if (!q) return; S.quotesExtra.push({ q, who: val('q-who'), src: val('q-src') }); closeModal(); commit(); toast('Цитату додано'); },
+  save() { const q = val('q-q'); if (!q) return; S.quotesExtra.push({ q, who: val('q-who'), src: val('q-src') }); S.ui.qOrder = null; quoteOrder(); S.ui.qPos = S.ui.qOrder.indexOf(quotes().length - 1); closeModal(); commit(); toast('Цитату додано'); },
 };
 
 /* ═══════════════ ЦІЛІ ═══════════════ */
@@ -1030,5 +1040,6 @@ if (!S.migrated && !S.budget.payments.length) { // одноразовий пла
   if (today() <= '2026-11-30') S.budget.payments.push({ id: uid(), name: 'Навчання (останній платіж)', amount: 2465, date: '2026-11-30', cat: 'Навчання', envId: null, status: 'planned' });
 }
 if (S.migrated && !S.ui._oneoff) { S.ui._oneoff = 1; if (today() <= '2026-11-30' && !S.budget.payments.some(p => /навчан/i.test(p.name))) S.budget.payments.push({ id: uid(), name: 'Навчання (останній платіж)', amount: 2465, date: '2026-11-30', cat: 'Навчання', envId: null, status: 'planned' }); }
+nextQuote();
 render();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
