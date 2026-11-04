@@ -1,0 +1,15 @@
+{
+  "name": "Bitch Catli",
+  "short_name": "Bitch Catli",
+  "description": "Задачі, цілі та бюджет Лізи",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c0406",
+  "theme_color": "#3a0814",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

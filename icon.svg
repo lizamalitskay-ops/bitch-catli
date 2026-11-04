@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs><pattern id="leo" width="60" height="60" patternUnits="userSpaceOnUse"><image href="leopard.svg" width="60" height="60"/></pattern></defs>
+  <rect width="192" height="192" rx="40" fill="#5a1424"/>
+  <polygon points="40,88 54,42 78,82" fill="#f6ece4"/>
+  <polygon points="114,82 138,42 152,88" fill="#f6ece4"/>
+  <polygon points="48,80 56,54 70,78" fill="#e59aa8"/>
+  <polygon points="122,78 136,54 144,80" fill="#e59aa8"/>
+  <ellipse cx="96" cy="112" rx="58" ry="50" fill="#f6ece4"/>
+  <path d="M60,92 q8,-10 20,-2" stroke="#2b170b" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M112,90 q12,-8 20,2" stroke="#2b170b" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <ellipse cx="78" cy="108" rx="9" ry="10" fill="#1a0a0e"/>
+  <ellipse cx="114" cy="108" rx="9" ry="10" fill="#1a0a0e"/>
+  <circle cx="81" cy="104" r="3" fill="#fff"/><circle cx="117" cy="104" r="3" fill="#fff"/>
+  <polygon points="96,121 90,127 102,127" fill="#c23d5c"/>
+  <path d="M90,127 Q96,133 102,127" stroke="#8c2a3b" stroke-width="2" fill="none"/>
+  <g stroke="#b59a9e" stroke-width="2"><line x1="38" y1="120" x2="82" y2="124"/><line x1="38" y1="128" x2="82" y2="128"/><line x1="110" y1="124" x2="154" y2="120"/><line x1="110" y1="128" x2="154" y2="128"/></g>
+  <text x="146" y="44" font-size="20" fill="#e8b4be">✦</text>
+</svg>
