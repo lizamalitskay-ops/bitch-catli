@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -514,8 +514,10 @@ window.Bd = {
       ${id ? '' : `<label class="checks" id="f-ms-wrap"><label><input type="checkbox" id="f-ms" checked> 🗓 Це зарплата: почати новий бюджетний місяць</label></label>`}`;
     if (type === 'expense') {
       const cats = Object.keys(EXP_CATS);
-      f += `<div class="row2"><div class="field"><label>Категорія</label><select id="f-cat" onchange="Bd._subs()"><option value="">— обери —</option>${opts(cats, t.cat)}</select></div><div class="field"><label>Підкатегорія</label><select id="f-sub"></select></div></div>
-        <div class="field"><label>Тип</label>${seg('f-spend', { must: SPEND.must[0], want: SPEND.want[0], spontan: SPEND.spontan[0] }, t.spend)}</div>
+      f += `<div class="field"><label>Категорія</label><select id="f-cat" onchange="Bd._subs();Bd._partsRefresh()"><option value="">— обери —</option>${opts(cats, t.cat)}</select></div>
+        <div class="field" id="f-subw"></div>
+        <div class="field" id="f-spendw"><label>Тип</label>${seg('f-spend', { must: SPEND.must[0], want: SPEND.want[0], spontan: SPEND.spontan[0] }, t.spend)}</div>
+        ${id ? '' : `<div class="field"><div id="f-parts"></div><button type="button" class="btn ghost sm" id="f-splitbtn" onclick="Bd._addPart()">✂ Розбити чек на частини</button><p class="muted tiny" style="margin-top:4px">Напр. в АТБ: 400 основне, 150 смаколики, 200 алкоголь. Кожна частина рахується окремо.</p></div>`}
         <div class="field"><label>Чим платила</label>${accSeg('f-acc', t.account)}</div>
         <div class="field"><label>Взяти з конверта</label>${envSelect(t.envId)}</div>
         <div class="field"><label>Терміновість</label><select id="f-urg">${opts(URGENCY, t.urgency)}</select></div>`;
@@ -527,32 +529,55 @@ window.Bd = {
       <div class="m-foot">${id ? `<button class="btn danger" onclick="Bd.delTx('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="Bd.saveTx('${type}','${id || ''}')">Зберегти</button></div>`;
     openModal(f, () => { if (type === 'expense') Bd._subs(t.sub); if (type === 'income') { const c = $('#f-cat'), w = $('#f-ms-wrap'); if (c && w) { const upd = () => w.classList.toggle('hidden', c.value !== 'Зарплата'); c.onchange = upd; upd(); } } });
   },
-  _subs(cur) { const c = val('f-cat'), s = $('#f-sub'); if (!s) return; const list = EXP_CATS[c] || []; s.innerHTML = `<option value="">—</option>` + opts(list, cur); s.disabled = !list.length; },
+  _subs(cur) {
+    const w = $('#f-subw'); if (!w) return; const list = EXP_CATS[val('f-cat')] || [];
+    w.innerHTML = list.length ? `<label>Що саме</label>${seg('f-sub', Object.fromEntries([...list.map(x => [x, x]), ['', 'Інше']]), list.includes(cur) ? cur : (cur === '' ? '' : list[0]))}` : '';
+    w.classList.toggle('hidden', !list.length || !!document.querySelector('#f-parts .part'));
+  },
+  _partSubs() { const list = EXP_CATS[val('f-cat')] || []; return list.length ? list : ['Основне']; },
+  _addPart() {
+    const box = $('#f-parts'); const d = document.createElement('div'); d.className = 'part';
+    d.innerHTML = `<select class="p-sub">${opts(Bd._partSubs())}</select><input class="p-amt" inputmode="decimal" placeholder="₴" oninput="Bd._partsSum()"><select class="p-sp">${opts([['must', '✅'], ['want', '💖'], ['spontan', '⚡']], 'must')}</select><button type="button" class="act x" onclick="this.parentNode.remove();Bd._partsSum()">×</button>`;
+    box.appendChild(d); if (box.children.length === 1) Bd._addPart();
+    $('#f-subw').classList.add('hidden'); $('#f-spendw').classList.add('hidden'); $('#f-splitbtn').textContent = '+ Ще частина'; Bd._partsSum();
+  },
+  _partsRefresh() { document.querySelectorAll('#f-parts .p-sub').forEach(s => { const v = s.value; s.innerHTML = opts(Bd._partSubs(), v); }); },
+  _partsSum() {
+    const rows = document.querySelectorAll('#f-parts .part'); const amt = $('#f-amt');
+    if (!rows.length) { amt.disabled = false; $('#f-subw') && Bd._subs(); $('#f-spendw').classList.remove('hidden'); return; }
+    let s = 0; rows.forEach(r => s += num(r.querySelector('.p-amt').value)); amt.value = s || ''; amt.disabled = true;
+  },
   saveTx(type, id) {
     const b = B();
     const amount = num(val('f-amt')); if (amount <= 0) return toast('Вкажи суму');
     const t = { id: id || uid(), type, amount, date: val('f-date') || today(), account: segVal('f-acc') || 'mono', desc: val('f-desc') };
     if (type === 'income') t.cat = val('f-cat');
-    if (type === 'expense') { t.cat = val('f-cat'); t.sub = val('f-sub'); t.spend = segVal('f-spend') || 'must'; t.envId = val('f-env') || null; t.urgency = val('f-urg'); t.unsorted = !t.cat; }
+    if (type === 'expense') { t.cat = val('f-cat'); t.sub = segVal('f-sub') || ''; t.spend = segVal('f-spend') || 'must'; t.envId = val('f-env') || null; t.urgency = val('f-urg'); t.unsorted = !t.cat; }
     if (type === 'save' || type === 'unsave') t.goalId = val('f-goal');
     const flags = { ms: checked('f-ms'), debt: checked('f-debt') };
-    if (type === 'expense' && t.spend === 'spontan') {
+    // розбитий чек → кілька записів
+    let list = [t];
+    const rows = [...document.querySelectorAll('#f-parts .part')].map(r => ({ sub: r.querySelector('.p-sub').value, amount: num(r.querySelector('.p-amt').value), spend: r.querySelector('.p-sp').value })).filter(r => r.amount > 0);
+    if (type === 'expense' && rows.length) { const rid = uid(); list = rows.map(r => ({ ...t, id: uid(), receipt: rid, sub: r.sub, amount: r.amount, spend: r.spend })); }
+    const spNew = list.filter(x => x.type === 'expense' && x.spend === 'spontan').reduce((s, x) => s + x.amount, 0);
+    if (spNew) {
       const old = id ? (b.txs.find(x => x.id === id) || {}) : {};
       const was = spontanSince(bMonthStart()) - (old.spend === 'spontan' && old.date >= bMonthStart() ? old.amount : 0);
-      if (was + amount > b.limits.spontan) return Bd.warn(was, amount, () => Bd._commitTx(t, id, flags));
+      if (was + spNew > b.limits.spontan) return Bd.warn(was, spNew, () => Bd._commitTx(list, id, flags));
     }
-    Bd._commitTx(t, id, flags);
+    Bd._commitTx(list, id, flags);
   },
-  _commitTx(t, id, flags) {
-    const b = B(), type = t.type, amount = t.amount;
+  _commitTx(list, id, flags) {
+    if (!Array.isArray(list)) list = [list];
+    const b = B(), t = list[0], type = t.type, amount = list.reduce((s, x) => s + x.amount, 0);
     const undo = snapshot();
     if (id) { const old = b.txs.find(x => x.id === id); if (old && !old.legacy) applyTx(old, -1); b.txs = b.txs.filter(x => x.id !== id); }
-    addTx(t);
-    let msg = 'Збережено';
+    list.forEach(addTx);
+    let msg = list.length > 1 ? `Збережено: чек розбито на ${list.length} ${plural(list.length, 'частину', 'частини', 'частин')}` : 'Збережено';
     if (type === 'income' && !id && t.cat === 'Зарплата' && flags.ms) { Bd.startMonth(t.date); msg = 'Новий бюджетний місяць почався 🌙'; }
     if (type === 'unsave' && !id && flags.debt) { const g = goalById(t.goalId); b.debts.push({ id: uid(), goalId: t.goalId, name: 'Повернути в «' + (g ? g.name : '') + '»', amount, repaid: 0, date: t.date, reason: t.desc }); }
     closeModal(); commit();
-    if (type === 'expense' && t.spend === 'spontan') { const s = spontanSince(bMonthStart()), l = b.limits.spontan; if (s >= l * .8 && s <= l) msg = `Спонтанне: ${money(s)} з ${money(l)} — вже близько до ліміту 👀`; }
+    if (type === 'expense' && list.some(x => x.spend === 'spontan')) { const s = spontanSince(bMonthStart()), l = b.limits.spontan; if (s >= l * .8 && s <= l) msg = `Спонтанне: ${money(s)} з ${money(l)} — вже близько до ліміту 👀`; }
     toast(msg, undo);
     if (msg.startsWith('Новий')) setTimeout(() => Bd.distribute(), 400);
   },
@@ -585,24 +610,26 @@ window.Bd = {
     const need = {};
     visiblePayments().filter(p => p.status === 'planned' && p.envId && p.date <= until).forEach(p => need[p.envId] = (need[p.envId] || 0) + p.amount);
     openModal(`<h3>💌 Розкласти по конвертах</h3>
-      <p class="muted small">Вільно зараз: <b id="d-free">${money(freeMoney())}</b>. Вкажи, скільки <b>додати</b> в кожен конверт. Підказка: скільки ще треба на оплати до наступної зарплати.</p>
-      ${b.envelopes.map(e => { const sug = Math.max(0, (need[e.id] || 0) - e.amount); return `<div class="env"><div class="n">${esc(e.name)}<div class="tiny muted">зараз ${money(e.amount)}${sug ? ` · треба ще ~${money(sug)}` : ''}</div></div><input style="width:110px" inputmode="decimal" data-env="${e.id}" placeholder="${sug || 0}" oninput="Bd._dsum()"></div>`; }).join('')}
-      <div class="kv"><span>Розкладаю</span><b id="d-sum">0 ₴</b></div>
-      <div class="m-foot"><button class="btn ghost sm" onclick="document.querySelectorAll('[data-env]').forEach(i=>i.value=i.placeholder==='0'?'':i.placeholder);Bd._dsum()">Заповнити підказками</button><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="Bd.saveDistribute()">Розкласти</button></div>`);
+      <p class="muted small">Впиши, <b>скільки всього має лежати</b> в кожному конверті (не скільки додати). Під назвою підказка: скільки треба на оплати до наступної зарплати.</p>
+      ${b.envelopes.map(e => { const n = need[e.id] || 0; return `<div class="env"><div class="n">✉ ${esc(e.name)}${n ? `<div class="tiny muted">на оплати треба ~${money(n)}</div>` : ''}</div><input style="width:120px" inputmode="decimal" data-env="${e.id}" data-need="${n}" value="${Math.round(e.amount) || ''}" placeholder="0" oninput="Bd._dsum()"></div>`; }).join('')}
+      <div class="kv"><span>Усього в конвертах</span><b id="d-sum"></b></div>
+      <div class="kv"><span>Вільних лишиться</span><b id="d-free"></b></div>
+      <div class="m-foot"><button class="btn ghost sm" onclick="document.querySelectorAll('[data-env]').forEach(i=>{const n=+i.dataset.need;if(n>num(i.value))i.value=n});Bd._dsum()">Заповнити за підказками</button><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="Bd.saveDistribute()">Розкласти</button></div>`);
   },
-  _dsum() { let s = 0; document.querySelectorAll('[data-env]').forEach(i => s += num(i.value)); $('#d-sum').textContent = money(s); $('#d-sum').className = s > freeMoney() ? 'bad' : ''; },
-  saveDistribute() { const undo = snapshot(); document.querySelectorAll('[data-env]').forEach(i => { const e = envById(i.dataset.env); e.amount += num(i.value); }); closeModal(); commit(); toast('Розклала по конвертах 💌', undo); },
+  _dsum() { let s = 0; document.querySelectorAll('[data-env]').forEach(i => s += num(i.value)); const f = balance() - s; $('#d-sum').textContent = money(s); $('#d-free').textContent = money(f); $('#d-free').className = f < 0 ? 'bad' : 'ok'; },
+  saveDistribute() { const undo = snapshot(); document.querySelectorAll('[data-env]').forEach(i => { const e = envById(i.dataset.env); e.amount = Math.max(0, num(i.value)); }); closeModal(); commit(); toast('Конверти оновлено 💌', undo); },
   env(id) {
     const e = id ? envById(id) : { name: '', amount: 0 };
     openModal(`<h3>${id ? 'Конверт' : 'Новий конверт'}</h3>
       <div class="field"><label>Назва</label><input id="e-name" value="${esc(e.name)}" autofocus></div>
-      ${id ? `<div class="field"><label>Зараз у конверті: <b>${money(e.amount)}</b>. Додати (+) або забрати у вільні (−)</label><input id="e-delta" inputmode="decimal" placeholder="напр. 500 або -200"></div>` : `<div class="field"><label>Покласти одразу, ₴</label><input id="e-delta" inputmode="decimal"></div>`}
+      <div class="field"><label>Скільки всього лежить у конверті, ₴</label><input id="e-delta" inputmode="decimal" value="${Math.round(e.amount) || ''}" placeholder="0"></div>
+      <p class="muted tiny">Ці гроші «зайняті»: вони лишаються на твоїх рахунках, але не рахуються у «Вільно».</p>
       <div class="m-foot">${id ? `<button class="btn danger" onclick="Bd.delEnv('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="Bd.saveEnv('${id || ''}')">Зберегти</button></div>`);
   },
   saveEnv(id) {
     const name = val('e-name'); if (!name) return toast('Назви конверт');
     const d = num(val('e-delta'));
-    if (id) { const e = envById(id); e.name = name; e.amount = Math.max(0, e.amount + d); }
+    if (id) { const e = envById(id); e.name = name; e.amount = Math.max(0, d); }
     else B().envelopes.push({ id: uid(), name, amount: Math.max(0, d), carry: 0 });
     closeModal(); commit();
   },
@@ -917,9 +944,9 @@ function vDay() {
   const fm = freeMoney();
   const monthTx = txIn(ms, '9999').sort((a, c) => c.date.localeCompare(a.date));
   const unsorted = b.txs.filter(t => t.unsorted);
-  return `
-  <section class="card">
-    <div class="sum-grid">
+  return `<div class="day-grid">
+  <section class="card d-sum">
+    <div class="sum-grid two">
       <div class="sum"><div class="l">Баланс</div><div class="v">${money(balance())}</div></div>
       <button class="sum" onclick="S.ui.sec.env=!S.ui.sec.env;persist(false);render()"><div class="l">Відкладено ${envOpen ? '▴' : '▾'}</div><div class="v">${money(reserved())}</div></button>
       <div class="sum hl"><div class="l">Вільно</div><div class="v ${fm < 0 ? 'bad' : ''}">${money(fm)}</div></div>
@@ -932,14 +959,17 @@ function vDay() {
       <div style="flex:1;min-width:200px"><div class="small" style="display:flex;justify-content:space-between"><span>⚡ Спонтанне</span><span>${money(spon)} / ${money(lim)}</span></div><div class="bar ${sp >= 100 ? 'b' : sp >= 80 ? 'w' : ''}"><i style="width:${sp}%"></i></div></div>
     </div>
   </section>
-  <section class="card"><div class="card-h"><h3>Рахунки</h3><button class="btn ghost sm" onclick="Bd.ride()">🚌 Поїздка</button><button class="btn ghost sm" onclick="Bd.transfer()">↔ Переказ</button></div>
-    <div class="acc-grid">${Object.keys(ACCS).map(k => `<button class="acc" onclick="Bd.acc('${k}')">${accIcon(k)}<div><div class="l">${ACCS[k]}</div><div class="v">${money(b.accounts[k])}</div></div></button>`).join('')}</div></section>
+  <aside class="d-pay">
   <section class="card"><div class="card-h"><h3>⚠ Найближчі оплати</h3><button class="btn sm" onclick="Bd.pay()">+ Оплата</button></div>
     ${soon.map(p => payRow(p, cov)).join('') || '<div class="empty">Тиждень без оплат 🎉</div>'}</section>
   <section class="card"><div class="card-h"><h3>💡 До зарплати (${fmtDate(np)})</h3></div>
     ${before.length ? `<div class="kv"><span>Треба оплатити</span><b>${money(before.reduce((a, p) => a + p.amount, 0))}</b></div><div class="kv"><span>З них уже в конвертах</span><b class="ok">${money(before.reduce((a, p) => a + (cov[p.id] || 0), 0))}</b></div>
       <div class="kv"><span>Ще потрібно</span><b>${money(needBefore)}</b></div>
       <p class="small" style="margin-top:6px">${needBefore <= 0 ? '<span class="ok">✓ Усе покрито конвертами</span>' : needBefore <= fm ? `<span class="ok">✓ Вистачає: після цього вільних лишиться ${money(fm - needBefore)}</span>` : `<span class="bad">Не вистачає ${money(needBefore - fm)}</span>`}</p>` : '<div class="empty">До зарплати оплат немає</div>'}</section>
+  </aside>
+  <div class="d-rest">
+  <section class="card"><div class="card-h"><h3>Рахунки</h3><button class="btn ghost sm" onclick="Bd.ride()">🚌 Поїздка</button><button class="btn ghost sm" onclick="Bd.transfer()">↔ Переказ</button></div>
+    <div class="acc-grid">${Object.keys(ACCS).map(k => `<button class="acc" onclick="Bd.acc('${k}')">${accIcon(k)}<div><div class="l">${ACCS[k]}</div><div class="v">${money(b.accounts[k])}</div></div></button>`).join('')}</div></section>
   ${b.debts.length ? `<section class="card"><div class="card-h"><h3>🔁 Повернути собі</h3></div>${b.debts.map(d => `<div class="pay"><div class="body"><div>${esc(d.name)}</div><div class="bar" style="margin-top:5px"><i style="width:${d.repaid / d.amount * 100}%"></i></div><div class="tiny muted">${money(d.repaid)} з ${money(d.amount)}${d.reason ? ' · ' + esc(d.reason) : ''}</div></div><button class="btn sm" onclick="Bd.repay('${d.id}')">Повернути</button></div>`).join('')}</section>` : ''}
   <section class="card"><div class="card-h"><h3>🏺 Мої цілі накопичення</h3><button class="btn ghost sm" onclick="Bd.tx('unsave')">− Взяти</button><button class="btn sm" onclick="Bd.tx('save')">+ Відкласти</button></div>
     <div class="sv-grid">${b.savings.map(s => { const p = s.target ? Math.min(100, s.saved / s.target * 100) : 0; const c = S.ui['calc_' + s.id] || ['', 'month']; return `<div class="sv-card"><div style="display:flex;gap:10px;align-items:center">${ring(Math.round(p), 56)}<div style="flex:1;min-width:0"><b>${esc(s.name)}</b><div class="small">${money(s.saved)} <span class="muted">з ${money(s.target)}</span></div><div class="tiny muted">лишилось ${money(Math.max(0, s.target - s.saved))}</div></div><button class="act" onclick="Bd.sav('${s.id}')">✎</button></div>
@@ -952,7 +982,7 @@ function vDay() {
     ${sec('d-out', `🌹 Витрати · ${money(sumT(monthTx, 'expense'))}`, `<button class="btn sm" onclick="Bd.tx('expense')">+ Додати</button>${monthTx.filter(t => t.type === 'expense').sort((a, c) => (c.unsorted ? 1 : 0) - (a.unsorted ? 1 : 0)).map(txRow).join('') || '<div class="empty">—</div>'}`, unsorted.length > 0)}
     ${sec('d-sv', `🏺 Відкладаю · ${money(sumT(monthTx, 'save'))}`, `<button class="btn sm" onclick="Bd.tx('save')">+ Додати</button>${monthTx.filter(t => ['save', 'unsave', 'repay'].includes(t.type)).map(txRow).join('') || '<div class="empty">—</div>'}`, false)}
     ${sec('d-tr', `↔ Перекази`, monthTx.filter(t => t.type === 'transfer').map(txRow).join('') || '<div class="empty">—</div>', false)}
-  </section>`;
+  </section></div></div>`;
 }
 function monthSummary(mk) {
   const from = mk + '-01', to = mk + '-31', list = txIn(from, to);
@@ -1016,7 +1046,7 @@ function vMonth() {
   const cats = {};
   exps.forEach(t => { const c = t.unsorted ? '⚠ Не розібрано' : (t.cat || 'Інше'); cats[c] = cats[c] || { sum: 0, subs: {}, sp: { must: 0, want: 0, spontan: 0 } }; cats[c].sum += t.amount; const s = t.sub || '—'; cats[c].subs[s] = (cats[c].subs[s] || 0) + t.amount; cats[c].sp[t.spend || 'must'] += t.amount; });
   const cov = coverage();
-  const unpaid = visiblePayments().filter(p => p.status === 'planned' && monthKey(p.date) === mk).sort((a, c) => a.date.localeCompare(c.date));
+  const unpaid = visiblePayments().filter(p => p.status === 'planned' && monthKey(p.date) === mk).sort((a, c) => ((cov[a.id] || 0) >= a.amount) - ((cov[c.id] || 0) >= c.amount) || a.date.localeCompare(c.date));
   const sv = list.filter(t => ['save', 'unsave', 'repay', 'save_legacy'].includes(t.type));
   return `
   <div class="cal-head leo" style="padding:10px 12px"><button class="act" onclick="Bd.monNav(-1)">‹</button><h2>${MONTHS[m - 1]} ${y}</h2><button class="act" style="width:auto;padding:0 10px" onclick="Bd.monNav(0)">зараз</button><button class="act" onclick="Bd.monNav(1)">›</button></div>

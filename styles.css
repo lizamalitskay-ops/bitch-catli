@@ -300,3 +300,13 @@ button.sum:hover{border-color:var(--accent)}
 @keyframes pop{50%{transform:scale(1.25)}}
 
 .sync.login{cursor:pointer;text-decoration:underline;opacity:1;color:#ffd7a8}
+
+/* бюджет · день: оплати справа (на телефоні — одразу під балансом) */
+.day-grid{display:grid;gap:14px;grid-template-columns:1fr;grid-template-areas:"sum" "pay" "rest"}
+.day-grid .card+.card{margin-top:0}
+.d-sum{grid-area:sum}.d-pay{grid-area:pay;display:flex;flex-direction:column;gap:14px}.d-rest{grid-area:rest;display:flex;flex-direction:column;gap:14px}
+@media(min-width:900px){.day-grid{grid-template-columns:minmax(0,1fr) 380px;grid-template-areas:"sum pay" "rest pay";align-items:start}.d-pay{position:sticky;top:120px}}
+.sum-grid.two{grid-template-columns:1fr 1fr;gap:8px}
+.sum-grid.two .sum{padding:8px 12px}.sum-grid.two .v{font-size:1.3rem}
+.part{display:grid;grid-template-columns:1fr 90px 64px 30px;gap:6px;margin-bottom:6px;align-items:center}
+.part input,.part select{padding:8px}
