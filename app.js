@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -930,8 +930,8 @@ function sec(key, title, inner, defOpen) {
 }
 function vBudget() {
   const s = S.ui.bsub;
-  return `<div class="subtabs">${seg('bsub', { day: 'День', cal: 'Календар', month: 'Місяць' }, s).replace('class="seg"', 'class="seg" onchange="Bd.sub(segVal(\'bsub\'))"')}<button class="icon-btn" style="background:var(--surface);color:var(--text)" title="Налаштування бюджету" onclick="Set_.open()">⚙</button></div>
-    ${s === 'cal' ? vCal() : s === 'month' ? vMonth() : vDay()}`;
+  return `<div class="subtabs">${seg('bsub', { day: 'День', cal: 'Календар', month: 'Місяць', util: 'Комуналка' }, s).replace('class="seg"', 'class="seg" onchange="Bd.sub(segVal(\'bsub\'))"')}<button class="icon-btn" style="background:var(--surface);color:var(--text)" title="Налаштування бюджету" onclick="Set_.open()">⚙</button></div>
+    ${s === 'cal' ? vCal() : s === 'month' ? vMonth() : s === 'util' ? vUtil() : vDay()}`;
 }
 function vDay() {
   const b = B(), T = today(), ms = bMonthStart(), cov = coverage();
@@ -1067,6 +1067,177 @@ function vMonth() {
     ${sec('m-out', `🌹 Всі витрати · ${money(sumT(list, 'expense'))}`, exps.sort((a, c) => c.date.localeCompare(a.date)).map(txRow).join('') || '<div class="empty">—</div>', false)}
     ${sec('m-sv', `🏺 Відкладання / заощадження`, sv.sort((a, c) => c.date.localeCompare(a.date)).map(txRow).join('') || '<div class="empty">—</div>', false)}
   </section>`;
+}
+
+
+/* ═══════════════ КОМУНАЛКА ═══════════════ */
+const r2 = x => Math.round(x * 100) / 100;
+const f1 = x => Math.floor(r2(x) * 10) / 10; // вода в Олени — до десятих копійок вниз (136,56 → 136,5)
+const fmt2 = x => r2(x).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+const UPARTS = { gas: ['Газ', 'gas'], gasDel: ['Доставка газу', 'gas'], el: ['Світло', 'el'], water: ['Водопостачання', 'water'], drain: ['Водовідведення', 'water'], waterFee: ['Абонплата за воду', 'water'] };
+const UGROUPS = { gas: ['🔥 Газ', '#7a1530'], el: ['⚡ Світло', '#e07a8e'], water: ['💧 Вода', '#c99a5b'] };
+function utils() {
+  const b = B();
+  if (!b.utils) b.utils = {
+    tariffs: { gas: 7.95, gasDel: 97.5, el: 4.32, water: 45.52, drain: 35.48, waterFee: 26 },
+    base: { gas: 12897, el: 24946, water: 1523, date: '2026-11-01' },
+    cur: { gas: '', el: '', water: '', date: today() },
+    history: [
+      { month: '2026-09', parts: { gas: 39.75, gasDel: 97.5, el: 237.6, water: 136.5, drain: 106.4, waterFee: 26 }, total: 643.75, note: 'з 8 вересня' },
+      { month: '2026-10', parts: { gas: 135.15, gasDel: 97.5, el: 302.4, water: 136.5, drain: 106.4, waterFee: 26 }, total: 803.95, readings: { gas: 12897, el: 24946, water: 1523 } },
+    ],
+  };
+  return b.utils;
+}
+function utilCalc(base, cur, t) {
+  const d = k => cur[k] === '' || cur[k] == null ? null : Math.max(0, Math.floor(num(cur[k])) - Math.floor(base[k]));
+  const dg = d('gas'), de = d('el'), dw = d('water');
+  const parts = { gas: dg == null ? 0 : r2(dg * t.gas), gasDel: t.gasDel, el: de == null ? 0 : r2(de * t.el), water: dw == null ? 0 : f1(dw * t.water), drain: dw == null ? 0 : f1(dw * t.drain), waterFee: t.waterFee };
+  const total = r2(Object.values(parts).reduce((a, x) => a + x, 0));
+  return { dg, de, dw, parts, total, fixed: t.gasDel + t.waterFee };
+}
+const groupSum = p => ({ gas: r2((p.gas || 0) + (p.gasDel || 0)), el: r2(p.el || 0), water: r2((p.water || 0) + (p.drain || 0) + (p.waterFee || 0)) });
+function utilText(base, cur, c, t) {
+  const L = [];
+  L.push(`Газ: ${Math.floor(num(cur.gas))} - ${Math.floor(base.gas)} = ${c.dg} куб м * ${t.gas} грн = ${fmt2(c.parts.gas)} грн`);
+  L.push(`Доставка газу: ${fmt2(t.gasDel)} грн`, '');
+  L.push(`Світло: ${Math.floor(num(cur.el))} - ${Math.floor(base.el)} = ${c.de}квт * ${t.el} грн = ${fmt2(c.parts.el)} грн`, '');
+  L.push(`Водопостачання: ${Math.floor(num(cur.water))} - ${Math.floor(base.water)} = ${c.dw} куб м * ${t.water} = ${fmt2(c.parts.water)} грн`);
+  L.push(`Водовідведення: ${c.dw} куб м * ${t.drain} = ${fmt2(c.parts.drain)} грн`);
+  L.push(`Абонплата за воду: ${fmt2(t.waterFee)} грн`, '', `Разом: ${fmt2(c.total)} грн`);
+  return L.join('\n');
+}
+window.U = {
+  input(k, v) { utils().cur[k] = v; persist(); U._live(); },
+  _live() {
+    const el = document.getElementById('u-live'); if (el) el.innerHTML = utilLive();
+  },
+  editBase() {
+    const u = utils(), b = u.base;
+    openModal(`<h3>Від яких показників рахуємо</h3><p class="muted small" style="margin-bottom:10px">Це показники, з яких почався поточний місяць (останні, за якими ти вже заплатила).</p>
+      <div class="row2"><div class="field"><label>🔥 Газ, м³</label><input id="ub-gas" inputmode="decimal" value="${b.gas}"></div><div class="field"><label>⚡ Світло, кВт·год</label><input id="ub-el" inputmode="decimal" value="${b.el}"></div></div>
+      <div class="row2"><div class="field"><label>💧 Вода, м³</label><input id="ub-water" inputmode="decimal" value="${b.water}"></div><div class="field"><label>Дата</label><input type="date" id="ub-date" value="${b.date}"></div></div>
+      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="U.saveBase()">Зберегти</button></div>`);
+  },
+  saveBase() { const b = utils().base; b.gas = num(val('ub-gas')); b.el = num(val('ub-el')); b.water = num(val('ub-water')); b.date = val('ub-date') || b.date; closeModal(); commit(); },
+  tariffs() {
+    const t = utils().tariffs;
+    openModal(`<h3>Тарифи</h3>${Object.entries(UPARTS).map(([k, [n]]) => `<div class="field"><label>${n}${['gasDel', 'waterFee'].includes(k) ? ', ₴ на місяць' : k === 'el' ? ', ₴ за кВт·год' : ', ₴ за м³'}</label><input id="ut-${k}" inputmode="decimal" value="${t[k]}"></div>`).join('')}
+      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="U.saveTariffs()">Зберегти</button></div>`);
+  },
+  saveTariffs() { const t = utils().tariffs; Object.keys(UPARTS).forEach(k => t[k] = num(val('ut-' + k))); closeModal(); commit(); },
+  copy() {
+    const u = utils(), c = utilCalc(u.base, u.cur, u.tariffs);
+    if (c.dg == null || c.de == null || c.dw == null) return toast('Впиши всі три показники');
+    const txt = utilText(u.base, u.cur, c, u.tariffs);
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Скопійовано для Олени 📋')).catch(() => openModal(`<h3>Текст для Олени</h3><textarea rows="12" readonly>${esc(txt)}</textarea><div class="m-foot"><button class="btn" onclick="closeModal()">Готово</button></div>`));
+  },
+  close() {
+    const u = utils(), c = utilCalc(u.base, u.cur, u.tariffs);
+    if (c.dg == null || c.de == null || c.dw == null) return toast('Впиши всі три показники');
+    const mk = monthKey(u.base.date);
+    if (!confirm(`Закрити ${MONTHS[+mk.slice(5) - 1].toLowerCase()} з сумою ${fmt2(c.total)} ₴?\nЦі показники стануть стартовими для наступного місяця.`)) return;
+    const undo = snapshot();
+    u.history = u.history.filter(h => h.month !== mk);
+    u.history.push({ month: mk, parts: c.parts, total: c.total, readings: { gas: Math.floor(num(u.cur.gas)), el: Math.floor(num(u.cur.el)), water: Math.floor(num(u.cur.water)) }, base: { gas: u.base.gas, el: u.base.el, water: u.base.water } });
+    u.history.sort((x, y) => x.month.localeCompare(y.month));
+    u.base = { gas: Math.floor(num(u.cur.gas)), el: Math.floor(num(u.cur.el)), water: Math.floor(num(u.cur.water)), date: u.cur.date || today() };
+    u.cur = { gas: '', el: '', water: '', date: today() };
+    // підставляємо точну суму в найближчу неоплачену «Комуналку»
+    const p = visiblePayments().filter(p => p.status === 'planned' && (p.cat === 'Комунальні' || /комунал/i.test(p.name))).sort((x, y) => x.date.localeCompare(y.date))[0];
+    if (p) { p.amount = c.total; p.approx = false; }
+    commit(); toast(`Місяць закрито: ${fmt2(c.total)} ₴${p ? ' · сума в оплаті «' + p.name + '» оновлена' : ''}`, undo);
+  },
+  delMonth(mk) { if (!confirm('Видалити цей місяць з історії?')) return; const u = utils(); u.history = u.history.filter(h => h.month !== mk); commit(); },
+  year(n) { S.ui.uYear = (S.ui.uYear || +today().slice(0, 4)) + n; persist(false); render(); },
+  pick(mk) { S.ui.uSel = S.ui.uSel === mk ? null : mk; persist(false); render(); },
+};
+function utilLive() {
+  const u = utils(), t = u.tariffs, c = utilCalc(u.base, u.cur, t);
+  const row = (name, calc, sum) => `<div class="kv"><span>${name}${calc ? `<div class="tiny muted">${calc}</div>` : ''}</span><b>${fmt2(sum)} ₴</b></div>`;
+  const has = c.dg != null || c.de != null || c.dw != null;
+  let html = row('🔥 Газ', c.dg != null ? `${Math.floor(num(u.cur.gas))} − ${Math.floor(u.base.gas)} = ${c.dg} м³ × ${t.gas}` : 'впиши показник', c.parts.gas)
+    + row('Доставка газу', 'щомісяця однаково', c.parts.gasDel)
+    + row('⚡ Світло', c.de != null ? `${Math.floor(num(u.cur.el))} − ${Math.floor(u.base.el)} = ${c.de} кВт·год × ${t.el}` : 'впиши показник', c.parts.el)
+    + row('💧 Водопостачання', c.dw != null ? `${Math.floor(num(u.cur.water))} − ${Math.floor(u.base.water)} = ${c.dw} м³ × ${t.water}` : 'впиши показник', c.parts.water)
+    + row('Водовідведення', c.dw != null ? `${c.dw} м³ × ${t.drain}` : '', c.parts.drain)
+    + row('Абонплата за воду', 'щомісяця однаково', c.parts.waterFee)
+    + `<div class="kv" style="font-size:1.05rem"><span><b>Разом</b></span><b style="font-size:1.25rem;font-family:var(--font-h)">${fmt2(c.total)} ₴</b></div>`;
+  // прогноз
+  const curDate = u.cur.date || today(), mk = monthKey(u.base.date), dim = lastDay(mk);
+  const passed = Math.max(1, daysBetween(u.base.date, curDate));
+  if (has && passed < dim - 1) {
+    const variable = c.total - c.fixed;
+    const fc = r2(variable / passed * dim + c.fixed);
+    html += `<div class="kv"><span>🔮 Прогноз на весь місяць<div class="tiny muted">за ${days(passed)} з ${dim}, якщо витрачати так само</div></span><b class="warn">≈ ${fmt2(fc)} ₴</b></div>`;
+  }
+  // конверт
+  const env = B().envelopes.find(e => /комунал/i.test(e.name));
+  if (env) {
+    const left = r2(env.amount - c.total);
+    html += `<div class="u-env ${left >= 0 ? 'ok' : 'bad'}"><div>✉ У конверті «${esc(env.name)}»: <b>${money(env.amount)}</b></div>
+      ${left >= 0 ? `<div>Після оплати лишиться <b>+${fmt2(left)} ₴</b>, вони перейдуть на наступний місяць</div>` : `<div>Не вистачає <b>${fmt2(-left)} ₴</b>, треба докласти</div>`}
+      ${env.carry > 0 ? `<div class="tiny">з минулого місяця перейшло +${money(env.carry)}, тож докладати треба менше</div>` : ''}</div>`;
+  }
+  const last = u.history[u.history.length - 1];
+  if (last && has) { const diff = r2(c.total - last.total); html += `<p class="tiny muted" style="margin-top:6px">Минулого разу (${MONTHS[+last.month.slice(5) - 1].toLowerCase()}): ${fmt2(last.total)} ₴ · ${diff >= 0 ? 'зараз уже на ' + fmt2(diff) + ' ₴ більше' : 'поки на ' + fmt2(-diff) + ' ₴ менше'}</p>`; }
+  return html;
+}
+function utilChart(year) {
+  const u = utils();
+  const cur = utilCalc(u.base, u.cur, u.tariffs), curMk = monthKey(u.base.date);
+  const months = [...Array(12).keys()].map(i => `${year}-${pad(i + 1)}`);
+  const data = months.map(mk => { const h = u.history.find(x => x.month === mk); if (h) return { mk, g: groupSum(h.parts), total: h.total }; if (mk === curMk && (cur.dg != null || cur.de != null || cur.dw != null)) return { mk, g: groupSum(cur.parts), total: cur.total, live: true }; return { mk, g: null, total: 0 }; });
+  const max = Math.max(500, ...data.map(d => d.total)) * 1.12;
+  const W = 600, H = 240, pl = 40, pb = 26, pt = 10, bw = (W - pl - 10) / 12;
+  const y = v => H - pb - (v / max) * (H - pb - pt);
+  const step = max > 2000 ? 500 : 250;
+  let grid = ''; for (let v = 0; v <= max; v += step) grid += `<line x1="${pl}" x2="${W - 6}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end" font-size="10" fill="var(--text3)">${v}</text>`;
+  const bars = data.map((d, i) => {
+    const x = pl + i * bw + bw * 0.18, w = bw * 0.64;
+    let segs = '', acc = 0;
+    if (d.g) ['gas', 'el', 'water'].forEach(k => { const v = d.g[k]; if (v > 0) { segs += `<rect x="${x}" y="${y(acc + v)}" width="${w}" height="${y(acc) - y(acc + v)}" fill="${UGROUPS[k][1]}" ${d.live ? 'opacity=".55"' : ''}/>`; acc += v; } });
+    const sel = S.ui.uSel === d.mk;
+    return `<g class="ubar" onclick="U.pick('${d.mk}')" style="cursor:pointer">${sel ? `<rect x="${pl + i * bw + 2}" y="${pt}" width="${bw - 4}" height="${H - pb - pt}" rx="6" fill="var(--raised)"/>` : ''}<rect x="${pl + i * bw}" y="${pt}" width="${bw}" height="${H - pb - pt}" fill="transparent"/>${segs}
+      ${d.total ? `<text x="${x + w / 2}" y="${y(d.total) - 4}" text-anchor="middle" font-size="9.5" fill="var(--text2)">${Math.round(d.total)}</text>` : ''}
+      <text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="${sel ? 'var(--accent)' : 'var(--text3)'}">${MONTHS[i].slice(0, 3)}</text></g>`;
+  }).join('');
+  return { svg: `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${grid}${bars}</svg>`, data };
+}
+function vUtil() {
+  const u = utils(), year = S.ui.uYear || +today().slice(0, 4);
+  const { svg, data } = utilChart(year);
+  const done = data.filter(d => d.g && !d.live);
+  const yTotal = r2(done.reduce((a, d) => a + d.total, 0));
+  const avg = done.length ? r2(yTotal / done.length) : 0;
+  const top = done.slice().sort((a, b) => b.total - a.total)[0];
+  const sel = S.ui.uSel && data.find(d => d.mk === S.ui.uSel && d.g);
+  const mkName = mk => MONTHS[+mk.slice(5) - 1];
+  return `<div class="util-grid">
+    <section class="card u-left"><div class="card-h"><h3>🧾 ${mkName(monthKey(u.base.date))}: рахуємо</h3><button class="btn ghost sm" onclick="U.tariffs()">Тарифи</button></div>
+      <div class="u-base small">Рахуємо від <b>${fmtDate(u.base.date)}</b>: 🔥 ${u.base.gas} · ⚡ ${u.base.el} · 💧 ${u.base.water} <button class="act" onclick="U.editBase()">✎</button></div>
+      <div class="u-inputs">
+        <div class="field"><label>🔥 Газ зараз</label><input inputmode="decimal" value="${esc(u.cur.gas)}" placeholder="${u.base.gas}" oninput="U.input('gas',this.value)"></div>
+        <div class="field"><label>⚡ Світло зараз</label><input inputmode="decimal" value="${esc(u.cur.el)}" placeholder="${u.base.el}" oninput="U.input('el',this.value)"></div>
+        <div class="field"><label>💧 Вода зараз</label><input inputmode="decimal" value="${esc(u.cur.water)}" placeholder="${u.base.water}" oninput="U.input('water',this.value)"></div>
+        <div class="field"><label>Дата показників</label><input type="date" value="${u.cur.date || today()}" onchange="U.input('date',this.value)"></div>
+      </div>
+      <div id="u-live">${utilLive()}</div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn ghost sm" onclick="U.copy()">📋 Скопіювати для Олени</button><span style="flex:1"></span><button class="btn sm" onclick="U.close()">✓ Закрити місяць</button></div>
+      <p class="tiny muted" style="margin-top:6px">Рахується по цілих кубах і кіловатах, як у Олени. «Закрити місяць» — коли подала показники: сума піде в історію, а ці показники стануть стартовими.</p>
+    </section>
+    <section class="card u-right"><div class="card-h"><h3>📊 Комуналка по місяцях</h3><button class="act" onclick="U.year(-1)">‹</button><b>${year}</b><button class="act" onclick="U.year(1)">›</button></div>
+      ${svg}
+      <div class="legend">${Object.values(UGROUPS).map(([n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')}<span><i style="background:var(--text3);opacity:.5"></i>поточний (ще рахується)</span></div>
+      <div class="sum-grid two" style="margin-top:12px">
+        <div class="sum"><div class="l">За ${year} рік</div><div class="v">${money(yTotal)}</div></div>
+        <div class="sum"><div class="l">В середньому / міс</div><div class="v">${money(avg)}</div></div>
+      </div>
+      ${top ? `<p class="small muted" style="margin-top:8px">Найдорожчий місяць: <b>${mkName(top.mk).toLowerCase()}</b> (${fmt2(top.total)} ₴)</p>` : ''}
+      ${sel ? `<div class="u-detail"><div class="card-h"><h3>${mkName(sel.mk)}${sel.live ? ' (поки що)' : ''}</h3>${!sel.live ? `<button class="act x" title="Видалити з історії" onclick="U.delMonth('${sel.mk}')">×</button>` : ''}</div>
+        ${Object.entries(UGROUPS).map(([k, [n, c]]) => `<div class="kv"><span><i class="dot" style="background:${c}"></i> ${n}</span><b>${fmt2(sel.g[k])} ₴ <span class="muted small">(${sel.total ? Math.round(sel.g[k] / sel.total * 100) : 0}%)</span></b></div>`).join('')}
+        <div class="kv"><span><b>Разом</b></span><b>${fmt2(sel.total)} ₴</b></div></div>` : '<p class="tiny muted" style="margin-top:6px">Натисни на стовпчик, щоб побачити розбивку.</p>'}
+    </section></div>`;
 }
 
 /* ═══════════════ СТАРТ ═══════════════ */

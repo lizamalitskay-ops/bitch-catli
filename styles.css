@@ -310,3 +310,15 @@ button.sum:hover{border-color:var(--accent)}
 .sum-grid.two .sum{padding:8px 12px}.sum-grid.two .v{font-size:1.3rem}
 .part{display:grid;grid-template-columns:1fr 90px 64px 30px;gap:6px;margin-bottom:6px;align-items:center}
 .part input,.part select{padding:8px}
+
+/* комуналка */
+.util-grid{display:grid;gap:14px;grid-template-columns:1fr}
+.util-grid .card+.card{margin-top:0}
+@media(min-width:900px){.util-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);align-items:start}}
+.u-inputs{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:10px}
+.u-base{display:flex;align-items:center;gap:4px;flex-wrap:wrap;color:var(--text2)}
+.u-env{margin-top:10px;padding:10px 12px;border-radius:12px;font-size:13.5px;background:color-mix(in srgb,var(--ok) 12%,var(--surface2))}
+.u-env.bad{background:color-mix(in srgb,var(--bad) 14%,var(--surface2))}
+.u-detail{margin-top:12px;padding-top:4px;border-top:1px solid var(--line)}
+.ubar:hover rect[fill="transparent"]{fill:color-mix(in srgb,var(--accent) 8%,transparent)}
+@media(max-width:480px){.subtabs .seg button{padding:7px 4px;font-size:12px}}
