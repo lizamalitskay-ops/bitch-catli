@@ -367,5 +367,5 @@ button.sum:hover{border-color:var(--accent)}
 .folder-block::after{content:'';position:absolute;left:12px;right:12px;top:-6px;height:8px;border-radius:6px 6px 0 0;background:#efe3cf;opacity:.85;z-index:-1}
 @media(min-width:900px){.today-grid .folder-block{margin-top:24px}.today-grid{align-items:start}.today-grid .a-tasks,.today-grid .a-dl{margin-top:24px}}
 /* фон «Сьогодні»: приглушене світліше бургунді, щоб чорний крокодил і червоний крокодил на ньому виділялись */
-:root:not([data-theme="light"]) body[data-view="today"]{background:radial-gradient(120% 80% at 50% 0%,#5a2a36 0%,#45202b 55%,#3a1a24 100%),#3a1a24}
+:root:not([data-theme="light"]) body[data-view="today"]{background:radial-gradient(120% 80% at 50% 0%,#4a202b 0%,#381820 55%,#2e131a 100%),#2e131a}
 :root:not([data-theme="light"]) body[data-view="today"] .gtile.empty-slot{border-color:rgba(255,220,226,.25);color:#e8c9cf}
