@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -273,7 +273,7 @@ window.T = {
       const list = S.tasks.filter(t => t.cat === c && t.inFolder && !t.done);
       const closed = S.ui.pick[c] !== false && S.ui.pick[c] !== undefined ? true : (S.ui.pick[c] === undefined ? true : false);
       const sel = list.filter(t => t.today).length;
-      return `<div class="folder ${closed ? 'closed' : ''}"><button class="folder-h" onclick="T.pickFold('${esc(c)}')">${folderImg(catPrint(c))}${esc(c)}<span class="cnt">${sel ? '☀ ' + sel + ' · ' : ''}${list.length}</span><span class="chev">▾</span></button>
+      return `<div class="folder ${closed ? 'closed' : ''}"><button class="folder-h" onclick="T.pickFold('${esc(c)}')"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}<span class="cnt">${sel ? '☀ ' + sel + ' · ' : ''}${list.length}</span><span class="chev">▾</span></button>
         <div class="folder-b">${list.map(t => `<div class="trow" onclick="T.pickToggle('${t.id}')"><span class="check ${t.today ? 'on' : ''}"></span><div class="body"><div class="txt">${esc(t.text)}</div><div class="meta">${taskBadges(t, 'pick')}</div></div></div>`).join('')}</div></div>`;
     }).join('') || '<div class="empty">У папках поки немає невиконаних задач</div>';
     openModal(`<h3>📂 Обери задачі на сьогодні</h3>
@@ -871,19 +871,19 @@ function vToday() {
   return `
   <div class="date-line"><span class="d">${d.getDate()} ${MONTHS_G[d.getMonth()]}</span><span class="wd">${WDAYS[d.getDay()]}, ${d.getFullYear()}</span></div>
   <div class="goals-row">${slots.join('')}</div>
-  ${q ? `<div class="${printClass(blockPrint('quote', 'svg'))} quote q-${blockPrint('quote', 'svg')}" ${printStyle(blockPrint('quote', 'svg'))}><div class="quote-box"><div class="quote-q">“${esc(q.q)}”</div><div class="quote-src">— ${esc(q.who)}${q.src ? ', <i>' + esc(q.src) + '</i>' : ''}</div></div>
-    <div class="quote-acts"><button class="act" title="Інша цитата" onclick="Q.next()">↻</button><button class="act" title="Фон" onclick="P.block('quote','svg','Цитата')">🎨</button><button class="act" title="Додати свою" onclick="Q.add()">+</button></div></div>` : ''}
+  ${q ? `<div class="tex tex-redcroc quote"><div class="quote-box"><div class="quote-q">“${esc(q.q)}”</div><div class="quote-src">— ${esc(q.who)}${q.src ? ', <i>' + esc(q.src) + '</i>' : ''}</div></div>
+    <div class="quote-acts"><button class="act" title="Інша цитата" onclick="Q.next()">↻</button><button class="act" title="Додати свою" onclick="Q.add()">+</button></div></div>` : ''}
   <div class="today-grid">
-    <section class="card a-notes ${printClass(blockPrint('notes', 'none'))}" ${printStyle(blockPrint('notes', 'none'))}><div class="card-h"><h2>Нотатки дня</h2><button class="act" title="Фон блоку" onclick="P.block('notes','none','Нотатки дня')">🎨</button></div>
+    <section class="tex tex-leopard folder-block a-notes"><div class="card-h"><h2>Нотатки дня</h2></div>
       <div class="add-inline"><input id="note-inp" placeholder="Щось швидко запам'ятати…" onkeydown="if(event.key==='Enter')N.add()"><button class="btn" onclick="N.add()">+</button></div>
       ${S.notes.map(n => `<div class="note"><div class="txt" onclick="N.edit('${n.id}')">${esc(n.text)}</div><button class="act" onclick="N.edit('${n.id}')">✎</button><button class="act x" onclick="N.del('${n.id}')">×</button></div>`).join('') || '<div class="empty">Порожньо. Тут живуть швидкі думки.</div>'}
     </section>
-    <section class="card a-tasks ${printClass(blockPrint('tasks', 'none'))}" ${printStyle(blockPrint('tasks', 'none'))}><div class="card-h"><h2>Задачі дня</h2><button class="act" title="Фон блоку" onclick="P.block('tasks','none','Задачі дня')">🎨</button><button class="btn ghost sm" onclick="T.pick()">📂 Зі списку</button><button class="btn sm" onclick="T.edit(null,'today')">+ Додати</button></div>
+    <section class="tex tex-lace a-tasks"><div class="card-h"><h2>Задачі дня</h2><button class="btn ghost sm" onclick="T.pick()">📂 Зі списку</button><button class="btn sm" onclick="T.edit(null,'today')">+ Додати</button></div>
       ${stars.length ? `<div class="group-h star">★ Суперзадачі</div><div class="super">${stars.map(t => taskRow(t, 'today')).join('')}</div>` : `<p class="muted tiny">Натисни ☆ біля задачі, щоб зробити її суперзадачею дня (найкраще 3).</p>`}
-      ${groups.map(c => `<div class="group-h">${folderImg(catPrint(c), 22)}${esc(c)}</div>${rest.filter(t => t.cat === c).map(t => taskRow(t, 'today')).join('')}`).join('')}
+      ${groups.map(c => `<div class="group-h"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</div>${rest.filter(t => t.cat === c).map(t => taskRow(t, 'today')).join('')}`).join('')}
       ${!tt.length ? '<div class="empty">На сьогодні задач немає. Обери зі списку або додай нову 🌙</div>' : ''}
     </section>
-    <section class="${printClass(blockPrint('dl', 'svg')) || 'card'} a-dl" ${printStyle(blockPrint('dl', 'svg'))}><div class="card-h"><h2>⚠ Найближчі дедлайни</h2><button class="act" title="Фон блоку" onclick="P.block('dl','svg','Найближчі дедлайни')">🎨</button><button class="btn ghost sm" onclick="T.edit(null,'tasks',{deadline:''})">+ Дедлайн</button></div>
+    <section class="tex tex-blackcroc a-dl"><div class="card-h"><h2>⚠ Найближчі дедлайни</h2><button class="btn ghost sm" onclick="T.edit(null,'tasks',{deadline:''})">+ Дедлайн</button></div>
       ${dl.map(dlItem).join('') || '<div class="empty">На найближчий тиждень дедлайнів немає 🐆</div>'}
     </section>
   </div>`;
@@ -928,7 +928,7 @@ function vTasks() {
       <div class="toolbar"><input id="search" placeholder="🔍 Пошук…" value="${esc(S.ui.search || '')}" oninput="S.ui.search=this.value;render();const s=$('#search');s.focus();s.setSelectionRange(s.value.length,s.value.length)"><button class="btn" onclick="T.edit(null,'tasks')">+ Нова</button></div>
       <div class="toolbar" style="margin-top:8px">${seg('flt', { all: 'Всі', urgent: 'Терміново', soon: 'Скоро', someday: 'Колись', done: 'Виконані' }, f).replace('class="seg"', 'class="seg" style="flex:1" onchange="S.ui.filter=segVal(\'flt\');persist(false);render()"')}</div>
       <div class="toolbar" style="margin-top:8px"><button class="btn ghost sm" onclick="T.foldAll(false)">Розгорнути все</button><button class="btn ghost sm" onclick="T.foldAll(true)">Згорнути все</button><span style="flex:1"></span><button class="btn ghost sm" onclick="T.clearDone()">🧹 Прибрати виконані</button></div>
-      ${cats.map(c => { const ct = list.filter(t => t.cat === c).sort((a, b) => a.done - b.done); return `<div class="folder ${S.ui.fold[c] ? 'closed' : ''}"><div class="folder-hw"><button class="folder-h" onclick="T.fold('${esc(c)}')">${folderImg(catPrint(c))}${esc(c)}<span class="cnt">${ct.filter(t => !t.done).length}${ct.some(t => t.done) ? ' · ✓' + ct.filter(t => t.done).length : ''}</span><span class="chev">▾</span></button><button class="act" title="Вигляд папки" onclick="P.cat('${esc(c)}')">🎨</button></div><div class="folder-b">${ct.map(t => taskRow(t, 'tasks')).join('')}</div></div>`; }).join('') || '<div class="empty">Нічого не знайдено</div>'}
+      ${cats.map(c => { const ct = list.filter(t => t.cat === c).sort((a, b) => a.done - b.done); return `<div class="folder ${S.ui.fold[c] ? 'closed' : ''}"><div class="folder-hw"><button class="folder-h" onclick="T.fold('${esc(c)}')"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}<span class="cnt">${ct.filter(t => !t.done).length}${ct.some(t => t.done) ? ' · ✓' + ct.filter(t => t.done).length : ''}</span><span class="chev">▾</span></button></div><div class="folder-b">${ct.map(t => taskRow(t, 'tasks')).join('')}</div></div>`; }).join('') || '<div class="empty">Нічого не знайдено</div>'}
     </div>
     <aside class="leo tasks-side"><div class="card-h"><h2>⏳ Дедлайни</h2></div>${dlBlock('Цього тижня', w)}${dlBlock('Цього місяця', m)}${dlBlock('Колись потім', l)}</aside>
   </div>`;

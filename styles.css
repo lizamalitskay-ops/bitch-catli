@@ -342,3 +342,27 @@ button.sum:hover{border-color:var(--accent)}
 .popt.on{border-color:var(--accent)}
 .pswatch,.pnone{width:100%;height:64px;border-radius:10px}
 .pnone{display:grid;place-items:center;border:1px dashed var(--line);color:var(--text3)}
+
+/* постійні принти блоків «Сьогодні»: плитка в рідній роздільності, без розтягування */
+.tex{position:relative;border-radius:var(--r);padding:14px;box-shadow:var(--shadow);color:#fff6ee;border:1px solid rgba(0,0,0,.45);
+  background-image:linear-gradient(rgba(18,4,8,var(--sh)),rgba(18,4,8,var(--sh))),var(--t);background-size:auto,224px auto;background-repeat:repeat;image-rendering:auto}
+.tex-leopard{--t:url('prints/tile-leopard.jpg');--sh:.22}
+.tex-lace{--t:url('prints/tile-lace.jpg');--sh:.35}
+.tex-redcroc{--t:url('prints/tile-redcroc.jpg');--sh:.1}
+.tex-blackcroc{--t:url('prints/tile-blackcroc.jpg');--sh:.05}
+.tex .card-h h2,.tex .card-h h3{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.85)}
+.tex .card-h h2{background:rgba(30,6,12,.72);padding:2px 12px;border-radius:10px;flex:0 1 auto;margin-right:auto}
+.tex .trow,.tex .note,.tex .leo-item,.tex .empty,.tex .super,.tex .add-inline input,.tex .muted.tiny{background:rgba(34,7,14,.9)!important;color:#fbe9ec}
+.tex .trow{border-radius:10px;margin-top:6px;border-top:0!important}
+.tex .group-h{color:#fff;background:rgba(34,7,14,.8);padding:4px 10px;border-radius:8px;display:inline-flex}
+.tex .muted.tiny{padding:6px 10px;border-radius:8px}
+.tex .act{color:#f6dde2}.tex .btn.ghost{color:#fff;border-color:rgba(255,255,255,.45);background:rgba(34,7,14,.7)}
+.tex .empty{padding:10px;border-radius:10px;font-style:normal}
+.tex.quote{padding:14px}
+/* нотатки — у вигляді папки з вушком */
+.folder-block{margin-top:26px;border-top-left-radius:0}
+.folder-block::before{content:'';position:absolute;left:-1px;top:-24px;width:46%;height:26px;border-radius:14px 18px 0 0;
+  background-image:linear-gradient(rgba(18,4,8,var(--sh)),rgba(18,4,8,var(--sh))),var(--t);background-size:auto,224px auto;border:1px solid rgba(0,0,0,.45);border-bottom:0;
+  clip-path:polygon(0 0,82% 0,100% 100%,0 100%)}
+.folder-block::after{content:'';position:absolute;left:12px;right:12px;top:-6px;height:8px;border-radius:6px 6px 0 0;background:#efe3cf;opacity:.85;z-index:-1}
+@media(min-width:900px){.today-grid .folder-block{margin-top:24px}.today-grid{align-items:start}.today-grid .a-tasks,.today-grid .a-dl{margin-top:24px}}
