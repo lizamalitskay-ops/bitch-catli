@@ -322,3 +322,23 @@ button.sum:hover{border-color:var(--accent)}
 .u-detail{margin-top:12px;padding-top:4px;border-top:1px solid var(--line)}
 .ubar:hover rect[fill="transparent"]{fill:color-mix(in srgb,var(--accent) 8%,transparent)}
 @media(max-width:480px){.subtabs .seg button{padding:7px 4px;font-size:12px}}
+
+/* принти */
+.fimg{flex-shrink:0;object-fit:contain;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));vertical-align:middle}
+.group-h .fimg{margin-right:2px}
+.folder-hw{display:flex;align-items:center;padding-right:8px}
+.folder-hw .folder-h{flex:1}
+.printed{border-radius:var(--r);padding:14px;box-shadow:var(--shadow);background-image:linear-gradient(rgba(18,4,8,var(--pshade)),rgba(18,4,8,var(--pshade))),var(--ptex)!important;background-size:cover!important;background-position:center!important;color:#fff6ee;border-color:rgba(0,0,0,.4)}
+.printed .card-h h2,.printed .card-h h3{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.7)}
+.printed .trow,.printed .note,.printed .leo-item,.printed .empty,.printed .super,.printed .add-inline input{background:rgba(36,8,15,.88)!important;color:#fbe9ec}
+.printed .trow{border-radius:10px;margin-top:6px;border-top:0!important}
+.printed .group-h{color:#fff;text-shadow:0 1px 4px #000;background:rgba(36,8,15,.7);padding:4px 8px;border-radius:8px;display:inline-flex}
+.printed .muted,.printed .tiny{color:#f0d6da}
+.printed .act{color:#f6dde2}.printed .btn.ghost{color:#fff;border-color:rgba(255,255,255,.45);background:rgba(36,8,15,.6)}
+.printed.quote{border-radius:var(--r);padding:14px;box-shadow:var(--shadow)}
+.quote.q-none{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+.popt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border-radius:14px;border:2px solid var(--line);background:var(--surface2);font-size:12.5px}
+.popt.on{border-color:var(--accent)}
+.pswatch,.pnone{width:100%;height:64px;border-radius:10px}
+.pnone{display:grid;place-items:center;border:1px dashed var(--line);color:var(--text3)}

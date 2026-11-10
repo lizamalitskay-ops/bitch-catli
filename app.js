@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -273,7 +273,7 @@ window.T = {
       const list = S.tasks.filter(t => t.cat === c && t.inFolder && !t.done);
       const closed = S.ui.pick[c] !== false && S.ui.pick[c] !== undefined ? true : (S.ui.pick[c] === undefined ? true : false);
       const sel = list.filter(t => t.today).length;
-      return `<div class="folder ${closed ? 'closed' : ''}"><button class="folder-h" onclick="T.pickFold('${esc(c)}')"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}<span class="cnt">${sel ? '☀ ' + sel + ' · ' : ''}${list.length}</span><span class="chev">▾</span></button>
+      return `<div class="folder ${closed ? 'closed' : ''}"><button class="folder-h" onclick="T.pickFold('${esc(c)}')">${folderImg(catPrint(c))}${esc(c)}<span class="cnt">${sel ? '☀ ' + sel + ' · ' : ''}${list.length}</span><span class="chev">▾</span></button>
         <div class="folder-b">${list.map(t => `<div class="trow" onclick="T.pickToggle('${t.id}')"><span class="check ${t.today ? 'on' : ''}"></span><div class="body"><div class="txt">${esc(t.text)}</div><div class="meta">${taskBadges(t, 'pick')}</div></div></div>`).join('')}</div></div>`;
     }).join('') || '<div class="empty">У папках поки немає невиконаних задач</div>';
     openModal(`<h3>📂 Обери задачі на сьогодні</h3>
@@ -611,7 +611,7 @@ window.Bd = {
     visiblePayments().filter(p => p.status === 'planned' && p.envId && p.date <= until).forEach(p => need[p.envId] = (need[p.envId] || 0) + p.amount);
     openModal(`<h3>💌 Розкласти по конвертах</h3>
       <p class="muted small">Впиши, <b>скільки всього має лежати</b> в кожному конверті (не скільки додати). Під назвою підказка: скільки треба на оплати до наступної зарплати.</p>
-      ${b.envelopes.map(e => { const n = need[e.id] || 0; return `<div class="env"><div class="n">✉ ${esc(e.name)}${n ? `<div class="tiny muted">на оплати треба ~${money(n)}</div>` : ''}</div><input style="width:120px" inputmode="decimal" data-env="${e.id}" data-need="${n}" value="${Math.round(e.amount) || ''}" placeholder="0" oninput="Bd._dsum()"></div>`; }).join('')}
+      ${b.envelopes.map(e => { const n = need[e.id] || 0; return `<div class="env">${folderImg(envPrint(e), 30)}<div class="n">${esc(e.name)}${n ? `<div class="tiny muted">на оплати треба ~${money(n)}</div>` : ''}</div><input style="width:120px" inputmode="decimal" data-env="${e.id}" data-need="${n}" value="${Math.round(e.amount) || ''}" placeholder="0" oninput="Bd._dsum()"></div>`; }).join('')}
       <div class="kv"><span>Усього в конвертах</span><b id="d-sum"></b></div>
       <div class="kv"><span>Вільних лишиться</span><b id="d-free"></b></div>
       <div class="m-foot"><button class="btn ghost sm" onclick="document.querySelectorAll('[data-env]').forEach(i=>{const n=+i.dataset.need;if(n>num(i.value))i.value=n});Bd._dsum()">Заповнити за підказками</button><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="Bd.saveDistribute()">Розкласти</button></div>`);
@@ -787,6 +787,31 @@ window.Set_ = {
   import(f) { if (!f) return; const r = new FileReader(); r.onload = () => { const s = safeJSON(r.result); if (!s || s.v !== 2) return toast('Це не схоже на копію Bitch Catli'); if (!confirm('Замінити всі поточні дані цією копією?')) return; S = s; closeModal(); commit(); toast('Відновлено з копії'); }; r.readAsText(f); },
 };
 
+
+/* ═══════════════ ПРИНТИ: папки й фони блоків ═══════════════ */
+const PRINTS = { leopard: 'Леопард', leopard2: 'Леопард великий', bambi: 'Бембі', redcroc: 'Червоний крокодил', blackcroc: 'Чорний крокодил', lace: 'Мереживо', zebra: 'Зебра', python: 'Пітон' };
+const PRINT_SHADE = { leopard: .5, leopard2: .5, bambi: .45, redcroc: .25, blackcroc: .15, lace: .62, zebra: .62, python: .6 };
+const PKEYS = Object.keys(PRINTS);
+const hashStr = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+const catPrint = c => (S.ui.catPrint || {})[c] || PKEYS[hashStr(c) % PKEYS.length];
+const folderImg = (k, size = 26) => `<img class="fimg" src="prints/folder-${k}.png" width="${size}" height="${Math.round(size * .78)}" alt="">`;
+const blockPrint = (id, def) => { const v = (S.ui.blockPrint || {})[id]; return v === undefined ? def : v; };
+function printStyle(k) { if (!k || k === 'none') return ''; if (k === 'svg') return ''; return `style="--ptex:url('prints/tex-${k}.jpg');--pshade:${PRINT_SHADE[k]}"`; }
+function printClass(k) { return !k || k === 'none' ? '' : k === 'svg' ? 'leo' : 'printed'; }
+window.P = {
+  pick(title, cur, onPick, withNone) {
+    P._on = onPick;
+    openModal(`<h3>🎨 ${esc(title)}</h3><div class="pgrid">
+      ${withNone ? `<button class="popt ${cur === 'none' ? 'on' : ''}" onclick="P._on('none')"><div class="pnone">без принту</div></button><button class="popt ${cur === 'svg' ? 'on' : ''}" onclick="P._on('svg')"><div class="pswatch" style="background:url(leopard.svg) 0 0/120px"></div>Мій леопард</button>` : ''}
+      ${PKEYS.map(k => `<button class="popt ${cur === k ? 'on' : ''}" onclick="P._on('${k}')">${withNone ? `<div class="pswatch" style="background:url(prints/tex-${k}.jpg) center/cover"></div>` : folderImg(k, 64)}${PRINTS[k]}</button>`).join('')}
+      </div><div class="m-foot"><button class="btn ghost" onclick="closeModal()">Закрити</button></div>`);
+  },
+  block(id, def, title) { P.pick('Фон блоку «' + title + '»', blockPrint(id, def), k => { S.ui.blockPrint = S.ui.blockPrint || {}; S.ui.blockPrint[id] = k; closeModal(); commit(); }, true); },
+  cat(c) { P.pick('Папка «' + c + '»', catPrint(c), k => { S.ui.catPrint = S.ui.catPrint || {}; S.ui.catPrint[c] = k; closeModal(); commit(); }); },
+  env(id) { const e = envById(id); P.pick('Конверт «' + e.name + '»', e.print || PKEYS[hashStr(e.name) % PKEYS.length], k => { e.print = k; closeModal(); commit(); }); },
+};
+const envPrint = e => e.print || PKEYS[hashStr(e.name) % PKEYS.length];
+
 /* ═══════════════ РЕНДЕР ═══════════════ */
 function render() {
   if (ensureRecurring()) persist();
@@ -846,19 +871,19 @@ function vToday() {
   return `
   <div class="date-line"><span class="d">${d.getDate()} ${MONTHS_G[d.getMonth()]}</span><span class="wd">${WDAYS[d.getDay()]}, ${d.getFullYear()}</span></div>
   <div class="goals-row">${slots.join('')}</div>
-  ${q ? `<div class="leo quote"><div class="quote-box"><div class="quote-q">“${esc(q.q)}”</div><div class="quote-src">— ${esc(q.who)}${q.src ? ', <i>' + esc(q.src) + '</i>' : ''}</div></div>
-    <div class="quote-acts"><button class="act" title="Інша цитата" onclick="Q.next()">↻</button><button class="act" title="Додати свою" onclick="Q.add()">+</button></div></div>` : ''}
+  ${q ? `<div class="${printClass(blockPrint('quote', 'svg'))} quote q-${blockPrint('quote', 'svg')}" ${printStyle(blockPrint('quote', 'svg'))}><div class="quote-box"><div class="quote-q">“${esc(q.q)}”</div><div class="quote-src">— ${esc(q.who)}${q.src ? ', <i>' + esc(q.src) + '</i>' : ''}</div></div>
+    <div class="quote-acts"><button class="act" title="Інша цитата" onclick="Q.next()">↻</button><button class="act" title="Фон" onclick="P.block('quote','svg','Цитата')">🎨</button><button class="act" title="Додати свою" onclick="Q.add()">+</button></div></div>` : ''}
   <div class="today-grid">
-    <section class="card a-notes"><div class="card-h"><h2>Нотатки дня</h2></div>
+    <section class="card a-notes ${printClass(blockPrint('notes', 'none'))}" ${printStyle(blockPrint('notes', 'none'))}><div class="card-h"><h2>Нотатки дня</h2><button class="act" title="Фон блоку" onclick="P.block('notes','none','Нотатки дня')">🎨</button></div>
       <div class="add-inline"><input id="note-inp" placeholder="Щось швидко запам'ятати…" onkeydown="if(event.key==='Enter')N.add()"><button class="btn" onclick="N.add()">+</button></div>
       ${S.notes.map(n => `<div class="note"><div class="txt" onclick="N.edit('${n.id}')">${esc(n.text)}</div><button class="act" onclick="N.edit('${n.id}')">✎</button><button class="act x" onclick="N.del('${n.id}')">×</button></div>`).join('') || '<div class="empty">Порожньо. Тут живуть швидкі думки.</div>'}
     </section>
-    <section class="card a-tasks"><div class="card-h"><h2>Задачі дня</h2><button class="btn ghost sm" onclick="T.pick()">📂 Зі списку</button><button class="btn sm" onclick="T.edit(null,'today')">+ Додати</button></div>
+    <section class="card a-tasks ${printClass(blockPrint('tasks', 'none'))}" ${printStyle(blockPrint('tasks', 'none'))}><div class="card-h"><h2>Задачі дня</h2><button class="act" title="Фон блоку" onclick="P.block('tasks','none','Задачі дня')">🎨</button><button class="btn ghost sm" onclick="T.pick()">📂 Зі списку</button><button class="btn sm" onclick="T.edit(null,'today')">+ Додати</button></div>
       ${stars.length ? `<div class="group-h star">★ Суперзадачі</div><div class="super">${stars.map(t => taskRow(t, 'today')).join('')}</div>` : `<p class="muted tiny">Натисни ☆ біля задачі, щоб зробити її суперзадачею дня (найкраще 3).</p>`}
-      ${groups.map(c => `<div class="group-h"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</div>${rest.filter(t => t.cat === c).map(t => taskRow(t, 'today')).join('')}`).join('')}
+      ${groups.map(c => `<div class="group-h">${folderImg(catPrint(c), 22)}${esc(c)}</div>${rest.filter(t => t.cat === c).map(t => taskRow(t, 'today')).join('')}`).join('')}
       ${!tt.length ? '<div class="empty">На сьогодні задач немає. Обери зі списку або додай нову 🌙</div>' : ''}
     </section>
-    <section class="leo a-dl"><div class="card-h"><h2>⚠ Найближчі дедлайни</h2><button class="btn ghost sm" onclick="T.edit(null,'tasks',{deadline:''})">+ Дедлайн</button></div>
+    <section class="${printClass(blockPrint('dl', 'svg')) || 'card'} a-dl" ${printStyle(blockPrint('dl', 'svg'))}><div class="card-h"><h2>⚠ Найближчі дедлайни</h2><button class="act" title="Фон блоку" onclick="P.block('dl','svg','Найближчі дедлайни')">🎨</button><button class="btn ghost sm" onclick="T.edit(null,'tasks',{deadline:''})">+ Дедлайн</button></div>
       ${dl.map(dlItem).join('') || '<div class="empty">На найближчий тиждень дедлайнів немає 🐆</div>'}
     </section>
   </div>`;
@@ -903,7 +928,7 @@ function vTasks() {
       <div class="toolbar"><input id="search" placeholder="🔍 Пошук…" value="${esc(S.ui.search || '')}" oninput="S.ui.search=this.value;render();const s=$('#search');s.focus();s.setSelectionRange(s.value.length,s.value.length)"><button class="btn" onclick="T.edit(null,'tasks')">+ Нова</button></div>
       <div class="toolbar" style="margin-top:8px">${seg('flt', { all: 'Всі', urgent: 'Терміново', soon: 'Скоро', someday: 'Колись', done: 'Виконані' }, f).replace('class="seg"', 'class="seg" style="flex:1" onchange="S.ui.filter=segVal(\'flt\');persist(false);render()"')}</div>
       <div class="toolbar" style="margin-top:8px"><button class="btn ghost sm" onclick="T.foldAll(false)">Розгорнути все</button><button class="btn ghost sm" onclick="T.foldAll(true)">Згорнути все</button><span style="flex:1"></span><button class="btn ghost sm" onclick="T.clearDone()">🧹 Прибрати виконані</button></div>
-      ${cats.map(c => { const ct = list.filter(t => t.cat === c).sort((a, b) => a.done - b.done); return `<div class="folder ${S.ui.fold[c] ? 'closed' : ''}"><button class="folder-h" onclick="T.fold('${esc(c)}')"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}<span class="cnt">${ct.filter(t => !t.done).length}${ct.some(t => t.done) ? ' · ✓' + ct.filter(t => t.done).length : ''}</span><span class="chev">▾</span></button><div class="folder-b">${ct.map(t => taskRow(t, 'tasks')).join('')}</div></div>`; }).join('') || '<div class="empty">Нічого не знайдено</div>'}
+      ${cats.map(c => { const ct = list.filter(t => t.cat === c).sort((a, b) => a.done - b.done); return `<div class="folder ${S.ui.fold[c] ? 'closed' : ''}"><div class="folder-hw"><button class="folder-h" onclick="T.fold('${esc(c)}')">${folderImg(catPrint(c))}${esc(c)}<span class="cnt">${ct.filter(t => !t.done).length}${ct.some(t => t.done) ? ' · ✓' + ct.filter(t => t.done).length : ''}</span><span class="chev">▾</span></button><button class="act" title="Вигляд папки" onclick="P.cat('${esc(c)}')">🎨</button></div><div class="folder-b">${ct.map(t => taskRow(t, 'tasks')).join('')}</div></div>`; }).join('') || '<div class="empty">Нічого не знайдено</div>'}
     </div>
     <aside class="leo tasks-side"><div class="card-h"><h2>⏳ Дедлайни</h2></div>${dlBlock('Цього тижня', w)}${dlBlock('Цього місяця', m)}${dlBlock('Колись потім', l)}</aside>
   </div>`;
@@ -952,7 +977,7 @@ function vDay() {
       <div class="sum hl"><div class="l">Вільно</div><div class="v ${fm < 0 ? 'bad' : ''}">${money(fm)}</div></div>
       <div class="sum"><div class="l">Витрачено з ${fmtDate(ms)}</div><div class="v">${money(spent)}</div></div>
     </div>
-    ${envOpen ? `<div style="margin-top:10px">${b.envelopes.map(e => `<div class="env"><div class="n">✉ ${esc(e.name)}${e.carry > 0 ? `<div class="tiny ok">+${money(e.carry)} перейшло з минулого місяця</div>` : ''}</div><span class="a">${money(e.amount)}</span><button class="act" onclick="Bd.env('${e.id}')">✎</button></div>`).join('')}
+    ${envOpen ? `<div style="margin-top:10px">${b.envelopes.map(e => `<div class="env">${folderImg(envPrint(e), 34)}<div class="n">${esc(e.name)}${e.carry > 0 ? `<div class="tiny ok">+${money(e.carry)} перейшло з минулого місяця</div>` : ''}</div><span class="a">${money(e.amount)}</span><button class="act" title="Вигляд" onclick="P.env('${e.id}')">🎨</button><button class="act" onclick="Bd.env('${e.id}')">✎</button></div>`).join('')}
       <div class="toolbar" style="margin-top:8px"><button class="btn sm" onclick="Bd.distribute()">💌 Розкласти гроші</button><button class="btn ghost sm" onclick="Bd.env()">+ Конверт</button></div></div>` : ''}
     <div style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
       <span class="small">🏺 Заощадження: <b>${money(savedTotal())}</b></span>
