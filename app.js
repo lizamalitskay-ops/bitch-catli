@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -819,7 +819,7 @@ function render() {
   document.body.dataset.view = v;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.v === v));
   applyTheme();
-  const html = { today: vToday, goals: vGoals, tasks: vTasks, budget: vBudget }[v]();
+  const html = { today: vToday, goals: vGoals, tasks: vTasks, budget: vBudget, notes: vNotes }[v]();
   const y = scrollY; $('#view').innerHTML = html; scrollTo(0, y);
   $('#fab').classList.toggle('hidden', v !== 'budget');
 }
@@ -1263,6 +1263,143 @@ function vUtil() {
         ${Object.entries(UGROUPS).map(([k, [n, c]]) => `<div class="kv"><span><i class="dot" style="background:${c}"></i> ${n}</span><b>${fmt2(sel.g[k])} ₴ <span class="muted small">(${sel.total ? Math.round(sel.g[k] / sel.total * 100) : 0}%)</span></b></div>`).join('')}
         <div class="kv"><span><b>Разом</b></span><b>${fmt2(sel.total)} ₴</b></div></div>` : '<p class="tiny muted" style="margin-top:6px">Натисни на стовпчик, щоб побачити розбивку.</p>'}
     </section></div>`;
+}
+
+
+/* ═══════════════ ЗАПИСНИК ═══════════════ */
+const NB_COVERS = { leopard: 'Леопард', lace: 'Мереживо', snow: 'Білий леопард', zebra: 'Зебра', croc: 'Крокодил' };
+const NB_LINES = 18;
+function notebooks() {
+  if (!S.notebooks) S.notebooks = [
+    { id: uid(), name: 'Думки', cover: 'leopard', kind: 'text', pages: [''] },
+    { id: uid(), name: 'Покупки', cover: 'croc', kind: 'shop', pages: [[]] },
+    { id: uid(), name: 'Ідеї', cover: 'lace', kind: 'text', pages: [''] },
+    { id: uid(), name: 'Особисте', cover: 'snow', kind: 'text', pages: [''] },
+    { id: uid(), name: 'Різне', cover: 'zebra', kind: 'text', pages: [''] },
+  ];
+  return S.notebooks;
+}
+const nbCur = () => notebooks().find(n => n.id === S.ui.nbOpen);
+let nbSaveT;
+function nbSave() { clearTimeout(nbSaveT); nbSaveT = setTimeout(() => persist(), 500); }
+function nbPageHTML(nb, i) {
+  const total = nb.pages.length;
+  let inner;
+  if (nb.kind === 'shop') {
+    const items = nb.pages[i] || [];
+    inner = `<div class="nb-rows">${[...Array(NB_LINES).keys()].map(r => { const it = items[r] || { t: '', c: false }; return `<div class="nb-row"><span class="nb-chk ${it.c ? 'on' : ''}" onclick="NB.chk(${i},${r})"></span><input class="nb-in" data-p="${i}" data-r="${r}" value="${esc(it.t)}" oninput="NB.item(${i},${r},this.value)" onkeydown="NB.key(event,${i},${r})" autocomplete="off"></div>`; }).join('')}</div>`;
+  } else inner = `<textarea class="nb-ta" data-p="${i}" spellcheck="false" oninput="NB.input(this)" onkeydown="NB.tkey(event,this)">${esc(nb.pages[i] || '')}</textarea>`;
+  return `<div class="nb-page" data-p="${i}"><div class="paper"><div class="holes"><i></i><i></i><i></i></div><div class="nb-head"><span>${esc(nb.name)}</span><span>${i + 1}</span></div>${inner}
+    ${i > 0 ? `<button class="curl prev" title="Попередня сторінка" onclick="NB.go(${i - 1})"></button>` : ''}<button class="curl next" title="${i < total - 1 ? 'Наступна сторінка' : 'Нова сторінка'}" onclick="NB.go(${i + 1})"></button></div><div class="paper-back"></div></div>`;
+}
+window.NB = {
+  open(id) { S.ui.nbOpen = id; S.ui.nbPage = 0; persist(false); render(); scrollTo(0, 0); },
+  close() { S.ui.nbOpen = null; persist(false); render(); },
+  go(target, focusPos) {
+    const nb = nbCur(); if (!nb || NB._busy) return;
+    const cur = S.ui.nbPage || 0;
+    if (target < 0 || target === cur) return;
+    if (target >= nb.pages.length) { nb.pages.push(nb.kind === 'shop' ? [] : ''); nbSave(); }
+    const stage = $('#nb-stage'); const old = stage.querySelector('.nb-page');
+    const tmp = document.createElement('div'); tmp.innerHTML = nbPageHTML(nb, target); const neu = tmp.firstElementChild;
+    NB._busy = true;
+    if (target > cur) { stage.insertBefore(neu, old); old.classList.add('turn-next'); }
+    else { stage.appendChild(neu); neu.classList.add('turn-prev'); }
+    S.ui.nbPage = target; persist(false);
+    $('#nb-count').textContent = `${target + 1} / ${nb.pages.length}`;
+    // фокус одразу на нову сторінку, щоб літери під час перегортання не губились
+    if (focusPos !== undefined) { const ta = neu.querySelector('.nb-ta, .nb-in'); if (ta) { ta.focus({ preventScroll: true }); if (ta.setSelectionRange) ta.setSelectionRange(focusPos, focusPos); } }
+    old.querySelectorAll('textarea,input').forEach(x => x.disabled = true);
+    setTimeout(() => { old.remove(); neu.classList.remove('turn-prev'); NB._busy = false; }, 720);
+  },
+  // ── текстові сторінки: якщо не влазить, переносимо хвіст на наступну ──
+  input(ta) {
+    const nb = nbCur(), p = +ta.dataset.p; nb.pages[p] = ta.value;
+    if (ta.scrollHeight > ta.clientHeight + 2) {
+      if (NB._busy) { clearTimeout(NB._re); NB._re = setTimeout(() => document.body.contains(ta) && NB.input(ta), 760); nbSave(); return; }
+      const caretEnd = ta.selectionStart >= ta.value.length - 1;
+      const meas = NB._meas(ta);
+      for (let i = p; i < nb.pages.length; i++) {
+        let text = nb.pages[i] || '', moved = '';
+        meas.value = text;
+        while (meas.scrollHeight > meas.clientHeight + 2 && text.length) {
+          const m = text.match(/(\s*\S+\s*|\s+)$/); const ch = m ? m[0] : text.slice(-1);
+          text = text.slice(0, -ch.length); moved = ch + moved; meas.value = text;
+        }
+        if (!moved) break;
+        nb.pages[i] = text;
+        if (i === nb.pages.length - 1) nb.pages.push('');
+        nb.pages[i + 1] = moved.replace(/^\n/, '').replace(/^[ \t]+/, '') + (nb.pages[i + 1] ? (moved.endsWith('\n') || moved.endsWith(' ') ? '' : ' ') + nb.pages[i + 1] : '');
+        if (i === p) { ta.value = text; if (caretEnd) { meas.remove(); nbSave(); $('#nb-count').textContent = `${p + 1} / ${nb.pages.length}`; return NB.go(p + 1, moved.replace(/^\n/, '').replace(/^[ \t]+/, '').length); } }
+      }
+      meas.remove();
+      $('#nb-count').textContent = `${p + 1} / ${nb.pages.length}`;
+    }
+    nbSave();
+  },
+  _meas(ta) { const m = ta.cloneNode(false); m.removeAttribute('oninput'); m.style.cssText = `position:absolute;visibility:hidden;left:-9999px;top:0;width:${ta.clientWidth}px;height:${ta.clientHeight}px`; document.body.appendChild(m); return m; },
+  tkey(e, ta) {
+    const p = +ta.dataset.p;
+    if (e.key === 'Backspace' && ta.selectionStart === 0 && ta.selectionEnd === 0 && p > 0) { e.preventDefault(); const prev = nbCur().pages[p - 1] || ''; NB.go(p - 1, prev.length); }
+  },
+  // ── покупки ──
+  _items(p) { const nb = nbCur(); if (!Array.isArray(nb.pages[p])) nb.pages[p] = []; const a = nb.pages[p]; return a; },
+  item(p, r, v) { const a = NB._items(p); while (a.length <= r) a.push({ t: '', c: false }); a[r].t = v; nbSave(); },
+  chk(p, r) { const a = NB._items(p); while (a.length <= r) a.push({ t: '', c: false }); a[r].c = !a[r].c; document.querySelectorAll('.nb-page')[0].querySelectorAll('.nb-chk')[r].classList.toggle('on', a[r].c); nbSave(); },
+  key(e, p, r) {
+    const rows = [...document.querySelectorAll(`.nb-page[data-p="${p}"] .nb-in`)];
+    if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); if (r < NB_LINES - 1) rows[r + 1].focus(); else NB.go(p + 1, 0); }
+    if (e.key === 'ArrowUp' && r > 0) { e.preventDefault(); rows[r - 1].focus(); }
+    if (e.key === 'Backspace' && !e.target.value && r > 0) { e.preventDefault(); rows[r - 1].focus(); }
+  },
+  copy() {
+    const nb = nbCur(); let txt;
+    if (nb.kind === 'shop') { const list = nb.pages.flat().filter(x => x && x.c && x.t.trim()).map(x => '• ' + x.t.trim()); if (!list.length) return toast('Відміть галочками, що треба купити'); txt = list.join('\n'); }
+    else txt = nb.pages[S.ui.nbPage || 0] || '';
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(nb.kind === 'shop' ? 'Список скопійовано 🛒' : 'Сторінку скопійовано')).catch(() => openModal(`<h3>Скопіюй</h3><textarea rows="10" readonly>${esc(txt)}</textarea><div class="m-foot"><button class="btn" onclick="closeModal()">Готово</button></div>`));
+  },
+  uncheck() { const nb = nbCur(); nb.pages.forEach(pg => Array.isArray(pg) && pg.forEach(x => x.c = false)); persist(); render(); },
+  delPage() {
+    const nb = nbCur(), p = S.ui.nbPage || 0;
+    if (nb.pages.length === 1) { nb.pages = [nb.kind === 'shop' ? [] : '']; }
+    else { if (!confirm('Видалити цю сторінку?')) return; nb.pages.splice(p, 1); S.ui.nbPage = Math.max(0, p - 1); }
+    persist(); render();
+  },
+  edit(id) {
+    const nb = id ? notebooks().find(n => n.id === id) : { name: '', cover: 'leopard', kind: 'text' };
+    openModal(`<h3>${id ? 'Зошит' : 'Новий зошит'}</h3>
+      <div class="field"><label>Назва</label><input id="nb-name" value="${esc(nb.name)}" autofocus></div>
+      ${id ? '' : `<div class="field"><label>Тип</label>${seg('nb-kind', { text: '✍ Записи', shop: '🛒 Список з галочками' }, nb.kind)}</div>`}
+      <div class="field"><label>Обкладинка</label><div class="pgrid" id="nb-covers">${Object.entries(NB_COVERS).map(([k, n]) => `<button type="button" class="popt ${k === nb.cover ? 'on' : ''}" data-v="${k}" onclick="this.parentNode.querySelectorAll('.popt').forEach(b=>b.classList.toggle('on',b===this))"><div class="pswatch" style="height:90px;background:url(notebook/cover-${k}.jpg) center/cover"></div>${n}</button>`).join('')}</div></div>
+      <div class="m-foot">${id ? `<button class="btn danger" onclick="NB.del('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="NB.save('${id || ''}')">Зберегти</button></div>`);
+  },
+  save(id) {
+    const name = val('nb-name'); if (!name) return toast('Назви зошит');
+    const cover = (document.querySelector('#nb-covers .popt.on') || {}).dataset?.v || 'leopard';
+    if (id) Object.assign(notebooks().find(n => n.id === id), { name, cover });
+    else { const kind = segVal('nb-kind') || 'text'; notebooks().push({ id: uid(), name, cover, kind, pages: [kind === 'shop' ? [] : ''] }); }
+    closeModal(); commit();
+  },
+  del(id) { if (!confirm('Видалити зошит з усіма записами?')) return; S.notebooks = notebooks().filter(n => n.id !== id); S.ui.nbOpen = null; closeModal(); commit(); },
+  swipe(stage) {
+    let x0, y0;
+    stage.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    stage.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null; if (Math.abs(dx) > 60 && Math.abs(dy) < 50) NB.go((S.ui.nbPage || 0) + (dx < 0 ? 1 : -1)); }, { passive: true });
+  },
+};
+function vNotes() {
+  const nb = nbCur();
+  if (nb) {
+    const p = Math.min(S.ui.nbPage || 0, nb.pages.length - 1); S.ui.nbPage = p;
+    setTimeout(() => { const st = $('#nb-stage'); st && NB.swipe(st); }, 0);
+    return `<div class="nb-top"><button class="btn ghost sm" onclick="NB.close()">‹ Полиця</button><h2>${esc(nb.name)}</h2><span class="muted small" id="nb-count">${p + 1} / ${nb.pages.length}</span><span style="flex:1"></span>
+      ${nb.kind === 'shop' ? `<button class="btn ghost sm" onclick="NB.uncheck()">Зняти галочки</button><button class="btn sm" onclick="NB.copy()">📋 Скопіювати відмічене</button>` : `<button class="btn ghost sm" onclick="NB.copy()">📋 Скопіювати сторінку</button>`}
+      <button class="act" title="Видалити сторінку" onclick="NB.delPage()">🗑</button><button class="act" title="Назва й обкладинка" onclick="NB.edit('${nb.id}')">✎</button></div>
+      <div class="nb-stage" id="nb-stage">${nbPageHTML(nb, p)}</div>
+      <div class="nb-nav"><button class="btn ghost sm" onclick="NB.go((S.ui.nbPage||0)-1)">‹ Назад</button><span class="muted tiny">гортай свайпом або тисни на куточок</span><button class="btn ghost sm" onclick="NB.go((S.ui.nbPage||0)+1)">Далі ›</button></div>`;
+  }
+  return `<div class="card-h" style="margin:4px 2px 14px"><h2>📓 Мої зошити</h2><button class="btn sm" onclick="NB.edit()">+ Новий зошит</button></div>
+    <div class="shelf">${notebooks().map(n => `<button class="nb-cover" onclick="NB.open('${n.id}')" style="background-image:url(notebook/cover-${n.cover}.jpg)"><span class="nb-label"><b>${esc(n.name)}</b><i></i><i></i><small>${n.kind === 'shop' ? '🛒 список' : `${n.pages.length} ${plural(n.pages.length, 'сторінка', 'сторінки', 'сторінок')}`}</small></span></button>`).join('')}</div>`;
 }
 
 /* ═══════════════ СТАРТ ═══════════════ */
