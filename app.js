@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
