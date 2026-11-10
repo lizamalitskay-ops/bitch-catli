@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -1280,89 +1280,217 @@ function notebooks() {
   return S.notebooks;
 }
 const nbCur = () => notebooks().find(n => n.id === S.ui.nbOpen);
+const nbSpread = () => innerWidth >= 900;
+const nbEmpty = nb => nb.kind === 'shop' ? [] : '';
+function nbEnsure(nb, n) { while (nb.pages.length < n) nb.pages.push(nbEmpty(nb)); }
 let nbSaveT;
 function nbSave() { clearTimeout(nbSaveT); nbSaveT = setTimeout(() => persist(), 500); }
-function nbPageHTML(nb, i) {
-  const total = nb.pages.length;
+
+// вміст однієї сторінки; ro = копія для «листка», що перегортається (без редагування)
+function nbPaper(nb, i, ro, holes) {
   let inner;
   if (nb.kind === 'shop') {
     const items = nb.pages[i] || [];
-    inner = `<div class="nb-rows">${[...Array(NB_LINES).keys()].map(r => { const it = items[r] || { t: '', c: false }; return `<div class="nb-row"><span class="nb-chk ${it.c ? 'on' : ''}" onclick="NB.chk(${i},${r})"></span><input class="nb-in" data-p="${i}" data-r="${r}" value="${esc(it.t)}" oninput="NB.item(${i},${r},this.value)" onkeydown="NB.key(event,${i},${r})" autocomplete="off"></div>`; }).join('')}</div>`;
-  } else inner = `<textarea class="nb-ta" data-p="${i}" spellcheck="false" oninput="NB.input(this)" onkeydown="NB.tkey(event,this)">${esc(nb.pages[i] || '')}</textarea>`;
-  return `<div class="nb-page" data-p="${i}"><div class="paper"><div class="holes"><i></i><i></i><i></i></div><div class="nb-head"><span>${esc(nb.name)}</span><span>${i + 1}</span></div>${inner}
-    ${i > 0 ? `<button class="curl prev" title="Попередня сторінка" onclick="NB.go(${i - 1})"></button>` : ''}<button class="curl next" title="${i < total - 1 ? 'Наступна сторінка' : 'Нова сторінка'}" onclick="NB.go(${i + 1})"></button></div><div class="paper-back"></div></div>`;
+    inner = `<div class="nb-rows">${[...Array(NB_LINES).keys()].map(r => { const it = items[r] || { t: '', c: false }; return `<div class="nb-row"><span class="nb-chk ${it.c ? 'on' : ''}" ${ro ? '' : `onclick="NB.chk(${i},${r},this)"`}></span><input class="nb-in" ${ro ? 'tabindex="-1" readonly' : `data-p="${i}" data-r="${r}" oninput="NB.item(${i},${r},this.value)" onkeydown="NB.key(event,${i},${r})"`} value="${esc(it.t)}" autocomplete="off"></div>`; }).join('')}</div>`;
+  } else inner = `<textarea class="nb-ta" ${ro ? 'tabindex="-1" readonly' : `data-p="${i}" oninput="NB.input(this)" onkeydown="NB.tkey(event,this)"`} spellcheck="false">${esc(nb.pages[i] || '')}</textarea>`;
+  return `<div class="paper">${holes ? '<div class="holes"><i></i><i></i><i></i></div>' : ''}<div class="nb-head"><span>${esc(nb.name)}</span><span>${i + 1}</span></div>${inner}<div class="nb-shade"></div></div>`;
 }
+const nbSheet = (nb, i, holes) => { const d = document.createElement('div'); d.className = 'nb-sheet'; d.dataset.p = i; d.innerHTML = nbPaper(nb, i, false, holes); return d; };
+
+function nbStageHTML(nb) {
+  const p = S.ui.nbPage || 0;
+  if (nbSpread()) {
+    nbEnsure(nb, p + 2);
+    return `<div class="nb-stage spread" id="nb-stage">
+      <div class="nb-slot left"><div class="nb-sheet" data-p="${p}">${nbPaper(nb, p, false, true)}</div></div>
+      <div class="nb-slot right"><div class="nb-sheet" data-p="${p + 1}">${nbPaper(nb, p + 1, false, false)}</div></div>
+      <div class="nb-spine"></div>
+      ${p > 0 ? '<div class="grab l" data-dir="-1"></div><div class="curl prev" data-dir="-1"></div>' : ''}<div class="grab r" data-dir="1"></div><div class="curl next" data-dir="1"></div></div>`;
+  }
+  return `<div class="nb-stage single" id="nb-stage">
+    <div class="nb-slot full"><div class="nb-sheet" data-p="${p}">${nbPaper(nb, p, false, true)}</div></div>
+    ${p > 0 ? '<div class="grab l" data-dir="-1"></div><div class="curl prev" data-dir="-1"></div>' : ''}<div class="grab r" data-dir="1"></div><div class="curl next" data-dir="1"></div></div>`;
+}
+
+// ── перегортання: «листок» (копія) обертається, а справжні сторінки вже лежать під ним ──
+function nbTurn(dir) {
+  const nb = nbCur(), stage = $('#nb-stage'); if (!nb || !stage || NB._turn) return null;
+  const spread = stage.classList.contains('spread'), p = S.ui.nbPage || 0, step = spread ? 2 : 1;
+  const np = p + dir * step; if (np < 0) return null;
+  nbEnsure(nb, np + step);
+  const leaf = document.createElement('div'); leaf.className = 'nb-leaf';
+  const front = n => `<div class="face front">${nbPaper(nb, n, true, n % 2 === 0 || !spread)}</div>`;
+  const back = n => `<div class="face back">${n == null ? '<div class="paper blank"><div class="nb-shade"></div></div>' : nbPaper(nb, n, true, n % 2 === 0 || !spread)}</div>`;
+  const added = [], hidden = [], removeAtEnd = [];
+  const slot = s => stage.querySelector('.nb-slot.' + s);
+  const under = (s, n, holes) => { const el = nbSheet(nb, n, holes); slot(s).insertBefore(el, slot(s).firstChild); added.push(el); return el; };
+  let from, to, focusEl;
+  if (spread && dir > 0) {          // правий листок лягає наліво
+    leaf.classList.add('on-right'); leaf.innerHTML = front(p + 1) + back(p + 2);
+    const curR = slot('right').lastElementChild, curL = slot('left').lastElementChild;
+    curR.style.visibility = 'hidden'; hidden.push(curR); removeAtEnd.push(curR, curL);
+    under('right', p + 3, false); focusEl = under('left', p + 2, true);
+    from = 0; to = -180;
+  } else if (spread) {              // лівий листок лягає направо
+    leaf.classList.add('on-left'); leaf.innerHTML = front(p) + back(p - 1);
+    const curR = slot('right').lastElementChild, curL = slot('left').lastElementChild;
+    curL.style.visibility = 'hidden'; hidden.push(curL); removeAtEnd.push(curR, curL);
+    focusEl = under('left', p - 2, true); under('right', p - 1, false);
+    from = 0; to = 180;
+  } else if (dir > 0) {             // одна сторінка: поточна відлітає
+    leaf.classList.add('on-full'); leaf.innerHTML = front(p) + back(null);
+    const cur = slot('full').lastElementChild; cur.style.visibility = 'hidden'; hidden.push(cur); removeAtEnd.push(cur);
+    focusEl = under('full', p + 1, true); from = 0; to = -180;
+  } else {                          // одна сторінка: попередня повертається
+    leaf.classList.add('on-full'); leaf.innerHTML = back(null).replace('face back', 'face back') + front(p - 1);
+    leaf.innerHTML = `<div class="face front">${nbPaper(nb, p - 1, true, true)}</div><div class="face back"><div class="paper blank"><div class="nb-shade"></div></div></div>`;
+    const cur = slot('full').lastElementChild; removeAtEnd.push(cur);
+    focusEl = under('full', p - 1, true); from = -180; to = 0;
+  }
+  stage.appendChild(leaf);
+  const shade = document.createElement('div'); shade.className = 'nb-cast'; stage.appendChild(shade);
+  const set = a => {
+    leaf.style.transform = `rotateY(${a}deg)`;
+    const k = Math.abs(a) / 180, s = Math.sin(k * Math.PI);
+    leaf.style.setProperty('--fs', (s * .45).toFixed(3));
+    shade.style.opacity = (s * .55).toFixed(3);
+    shade.style.left = spread ? (dir > 0 ? '50%' : '0') : '0'; shade.style.width = spread ? '50%' : '100%';
+  };
+  set(from);
+  const ctl = {
+    from, to, dir, np, focusEl,
+    set: t => set(from + (to - from) * Math.max(0, Math.min(1, t))),
+    anim(t1, ms, done) {
+      leaf.style.transition = `transform ${ms}ms cubic-bezier(.25,.1,.2,1)`; shade.style.transition = `opacity ${ms}ms ease`;
+      requestAnimationFrame(() => { ctl.set(t1); });
+      setTimeout(done, ms + 30);
+    },
+    finish() { leaf.remove(); shade.remove(); removeAtEnd.forEach(e => e.remove()); S.ui.nbPage = np; persist(false); NB._turn = null; nbAfter(); },
+    cancel() { leaf.remove(); shade.remove(); added.forEach(e => e.remove()); hidden.forEach(e => e.style.visibility = ''); NB._turn = null; },
+  };
+  NB._turn = ctl;
+  return ctl;
+}
+function nbAfter() {
+  const nb = nbCur(), stage = $('#nb-stage'); if (!nb || !stage) return;
+  // оновлюємо кнопки-куточки й лічильник
+  const tmp = document.createElement('div'); tmp.innerHTML = nbStageHTML(nb);
+  stage.querySelectorAll('.grab,.curl').forEach(e => e.remove());
+  tmp.firstElementChild.querySelectorAll('.grab,.curl').forEach(e => stage.appendChild(e));
+  nbCount(); nbBind(stage);
+  stage.querySelectorAll('.nb-ta').forEach(ta => NB.fit(ta));
+}
+function nbCount() {
+  const nb = nbCur(), p = S.ui.nbPage || 0, el = $('#nb-count'); if (!el) return;
+  el.textContent = nbSpread() ? `${p + 1}–${p + 2} з ${nb.pages.length}` : `${p + 1} з ${nb.pages.length}`;
+}
+function nbBind(stage) {
+  stage.querySelectorAll('.grab,.curl').forEach(z => {
+    z.onpointerdown = e => {
+      e.preventDefault();
+      const dir = +z.dataset.dir, ctl = nbTurn(dir); if (!ctl) return;
+      const W = stage.clientWidth * (stage.classList.contains('spread') ? .5 : 1);
+      const x0 = e.clientX, t0 = performance.now(); let t = 0, moved = false;
+      z.setPointerCapture(e.pointerId);
+      z.onpointermove = ev => { const dx = (ev.clientX - x0) * -dir; if (Math.abs(dx) > 4) moved = true; t = Math.max(0, Math.min(1, dx / (W * 1.05))); ctl.set(t); };
+      z.onpointerup = z.onpointercancel = ev => {
+        z.onpointermove = z.onpointerup = z.onpointercancel = null;
+        const fast = moved && (performance.now() - t0) < 260 && t > .05;
+        if (!moved || t > .35 || fast) ctl.anim(1, Math.round(900 * (1 - t) + 150), () => ctl.finish());
+        else ctl.anim(0, Math.round(500 * t + 120), () => ctl.cancel());
+      };
+    };
+  });
+  if (!stage._sw) {
+    stage._sw = 1; let x0, y0;
+    stage.addEventListener('touchstart', e => { if (e.target.closest('.grab,.curl')) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    stage.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null; if (Math.abs(dx) > 60 && Math.abs(dy) < 50) NB.go(dx < 0 ? 1 : -1); }, { passive: true });
+  }
+}
+
 window.NB = {
   open(id) { S.ui.nbOpen = id; S.ui.nbPage = 0; persist(false); render(); scrollTo(0, 0); },
   close() { S.ui.nbOpen = null; persist(false); render(); },
-  go(target, focusPos) {
-    const nb = nbCur(); if (!nb || NB._busy) return;
-    const cur = S.ui.nbPage || 0;
-    if (target < 0 || target === cur) return;
-    if (target >= nb.pages.length) { nb.pages.push(nb.kind === 'shop' ? [] : ''); nbSave(); }
-    const stage = $('#nb-stage'); const old = stage.querySelector('.nb-page');
-    const tmp = document.createElement('div'); tmp.innerHTML = nbPageHTML(nb, target); const neu = tmp.firstElementChild;
-    NB._busy = true;
-    if (target > cur) { stage.insertBefore(neu, old); old.classList.add('turn-next'); }
-    else { stage.appendChild(neu); neu.classList.add('turn-prev'); }
-    S.ui.nbPage = target; persist(false);
-    $('#nb-count').textContent = `${target + 1} / ${nb.pages.length}`;
-    // фокус одразу на нову сторінку, щоб літери під час перегортання не губились
-    if (focusPos !== undefined) { const ta = neu.querySelector('.nb-ta, .nb-in'); if (ta) { ta.focus({ preventScroll: true }); if (ta.setSelectionRange) ta.setSelectionRange(focusPos, focusPos); } }
-    old.querySelectorAll('textarea,input').forEach(x => x.disabled = true);
-    setTimeout(() => { old.remove(); neu.classList.remove('turn-prev'); NB._busy = false; }, 720);
+  // dir: +1 вперед, -1 назад; focus: [номер сторінки, позиція] — куди писати далі
+  go(dir, focus) {
+    const ctl = nbTurn(dir); if (!ctl) return;
+    if (focus) NB._focus(focus[0], focus[1]);
+    ctl.anim(1, 1050, () => { ctl.finish(); const ae = document.activeElement; if (focus && !(ae && ae.dataset && +ae.dataset.p === focus[0])) NB._focus(focus[0], focus[1]); });
   },
-  // ── текстові сторінки: якщо не влазить, переносимо хвіст на наступну ──
+  _focus(p, pos) {
+    const el = document.querySelector(`#nb-stage .nb-ta[data-p="${p}"], #nb-stage .nb-in[data-p="${p}"][data-r="${pos === 'row0' ? 0 : 0}"]`);
+    if (!el) return; el.focus({ preventScroll: true }); if (typeof pos === 'number' && el.setSelectionRange) el.setSelectionRange(pos, pos);
+  },
+  // ── текст: не влазить → хвіст на наступну сторінку ──
+  _meas(ta) { const m = ta.cloneNode(false); m.removeAttribute('oninput'); m.removeAttribute('data-p'); m.style.cssText = `position:absolute;visibility:hidden;left:-9999px;top:0;width:${ta.clientWidth}px;height:${ta.clientHeight}px`; document.body.appendChild(m); return m; },
+  reflow(ta, p) {
+    const nb = nbCur(), meas = NB._meas(ta); let firstMoved = null;
+    for (let i = p; i < nb.pages.length; i++) {
+      let text = nb.pages[i] || '', moved = ''; meas.value = text;
+      while (meas.scrollHeight > meas.clientHeight + 2 && text.length) {
+        const m = text.match(/(\s*\S+\s*|\s+)$/); const ch = m ? m[0] : text.slice(-1);
+        text = text.slice(0, -ch.length); moved = ch + moved; meas.value = text;
+      }
+      if (!moved) break;
+      moved = moved.replace(/^\n/, '').replace(/^[ \t]+/, '');
+      nb.pages[i] = text; nbEnsure(nb, i + 2);
+      const nxt = nb.pages[i + 1] || '';
+      nb.pages[i + 1] = moved + (nxt ? (/[\s]$/.test(moved) ? '' : ' ') + nxt : '');
+      if (firstMoved == null) firstMoved = moved.length;
+    }
+    meas.remove();
+    // оновлюємо видимі сторінки
+    document.querySelectorAll('#nb-stage .nb-ta[data-p]').forEach(t => { const v = nb.pages[+t.dataset.p] || ''; if (t.value !== v) t.value = v; });
+    nbCount();
+    return firstMoved;
+  },
+  fit(ta) { if (ta.scrollHeight > ta.clientHeight + 2) { NB.reflow(ta, +ta.dataset.p); nbSave(); } },
   input(ta) {
     const nb = nbCur(), p = +ta.dataset.p; nb.pages[p] = ta.value;
     if (ta.scrollHeight > ta.clientHeight + 2) {
-      if (NB._busy) { clearTimeout(NB._re); NB._re = setTimeout(() => document.body.contains(ta) && NB.input(ta), 760); nbSave(); return; }
+      if (NB._turn) { clearTimeout(NB._re); NB._re = setTimeout(() => document.body.contains(ta) && NB.input(ta), 400); nbSave(); return; }
       const caretEnd = ta.selectionStart >= ta.value.length - 1;
-      const meas = NB._meas(ta);
-      for (let i = p; i < nb.pages.length; i++) {
-        let text = nb.pages[i] || '', moved = '';
-        meas.value = text;
-        while (meas.scrollHeight > meas.clientHeight + 2 && text.length) {
-          const m = text.match(/(\s*\S+\s*|\s+)$/); const ch = m ? m[0] : text.slice(-1);
-          text = text.slice(0, -ch.length); moved = ch + moved; meas.value = text;
-        }
-        if (!moved) break;
-        nb.pages[i] = text;
-        if (i === nb.pages.length - 1) nb.pages.push('');
-        nb.pages[i + 1] = moved.replace(/^\n/, '').replace(/^[ \t]+/, '') + (nb.pages[i + 1] ? (moved.endsWith('\n') || moved.endsWith(' ') ? '' : ' ') + nb.pages[i + 1] : '');
-        if (i === p) { ta.value = text; if (caretEnd) { meas.remove(); nbSave(); $('#nb-count').textContent = `${p + 1} / ${nb.pages.length}`; return NB.go(p + 1, moved.replace(/^\n/, '').replace(/^[ \t]+/, '').length); } }
+      const moved = NB.reflow(ta, p);
+      if (caretEnd && moved != null) {
+        const nextVisible = document.querySelector(`#nb-stage .nb-ta[data-p="${p + 1}"]`);
+        if (nextVisible) NB._focus(p + 1, moved); else NB.go(1, [p + 1, moved]);
       }
-      meas.remove();
-      $('#nb-count').textContent = `${p + 1} / ${nb.pages.length}`;
     }
     nbSave();
   },
-  _meas(ta) { const m = ta.cloneNode(false); m.removeAttribute('oninput'); m.style.cssText = `position:absolute;visibility:hidden;left:-9999px;top:0;width:${ta.clientWidth}px;height:${ta.clientHeight}px`; document.body.appendChild(m); return m; },
   tkey(e, ta) {
     const p = +ta.dataset.p;
-    if (e.key === 'Backspace' && ta.selectionStart === 0 && ta.selectionEnd === 0 && p > 0) { e.preventDefault(); const prev = nbCur().pages[p - 1] || ''; NB.go(p - 1, prev.length); }
+    if (e.key === 'Backspace' && ta.selectionStart === 0 && ta.selectionEnd === 0 && p > 0) {
+      e.preventDefault(); const prevLen = (nbCur().pages[p - 1] || '').length;
+      if (document.querySelector(`#nb-stage .nb-ta[data-p="${p - 1}"]`)) NB._focus(p - 1, prevLen); else NB.go(-1, [p - 1, prevLen]);
+    }
   },
   // ── покупки ──
-  _items(p) { const nb = nbCur(); if (!Array.isArray(nb.pages[p])) nb.pages[p] = []; const a = nb.pages[p]; return a; },
+  _items(p) { const nb = nbCur(); if (!Array.isArray(nb.pages[p])) nb.pages[p] = []; return nb.pages[p]; },
   item(p, r, v) { const a = NB._items(p); while (a.length <= r) a.push({ t: '', c: false }); a[r].t = v; nbSave(); },
-  chk(p, r) { const a = NB._items(p); while (a.length <= r) a.push({ t: '', c: false }); a[r].c = !a[r].c; document.querySelectorAll('.nb-page')[0].querySelectorAll('.nb-chk')[r].classList.toggle('on', a[r].c); nbSave(); },
+  chk(p, r, el) { const a = NB._items(p); while (a.length <= r) a.push({ t: '', c: false }); a[r].c = !a[r].c; el.classList.toggle('on', a[r].c); nbSave(); },
   key(e, p, r) {
-    const rows = [...document.querySelectorAll(`.nb-page[data-p="${p}"] .nb-in`)];
-    if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); if (r < NB_LINES - 1) rows[r + 1].focus(); else NB.go(p + 1, 0); }
-    if (e.key === 'ArrowUp' && r > 0) { e.preventDefault(); rows[r - 1].focus(); }
-    if (e.key === 'Backspace' && !e.target.value && r > 0) { e.preventDefault(); rows[r - 1].focus(); }
+    const row = (pp, rr) => document.querySelector(`#nb-stage .nb-in[data-p="${pp}"][data-r="${rr}"]`);
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (r < NB_LINES - 1) row(p, r + 1).focus();
+      else if (row(p + 1, 0)) row(p + 1, 0).focus();
+      else NB.go(1, [p + 1, 'row0']);
+    }
+    if (e.key === 'ArrowUp' && r > 0) { e.preventDefault(); row(p, r - 1).focus(); }
+    if (e.key === 'Backspace' && !e.target.value && r > 0) { e.preventDefault(); row(p, r - 1).focus(); }
   },
   copy() {
     const nb = nbCur(); let txt;
     if (nb.kind === 'shop') { const list = nb.pages.flat().filter(x => x && x.c && x.t.trim()).map(x => '• ' + x.t.trim()); if (!list.length) return toast('Відміть галочками, що треба купити'); txt = list.join('\n'); }
-    else txt = nb.pages[S.ui.nbPage || 0] || '';
-    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(nb.kind === 'shop' ? 'Список скопійовано 🛒' : 'Сторінку скопійовано')).catch(() => openModal(`<h3>Скопіюй</h3><textarea rows="10" readonly>${esc(txt)}</textarea><div class="m-foot"><button class="btn" onclick="closeModal()">Готово</button></div>`));
+    else { const p = S.ui.nbPage || 0; txt = nbSpread() ? [nb.pages[p], nb.pages[p + 1]].filter(Boolean).join('\n') : (nb.pages[p] || ''); }
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(nb.kind === 'shop' ? 'Список скопійовано 🛒' : 'Скопійовано')).catch(() => openModal(`<h3>Скопіюй</h3><textarea rows="10" readonly>${esc(txt)}</textarea><div class="m-foot"><button class="btn" onclick="closeModal()">Готово</button></div>`));
   },
   uncheck() { const nb = nbCur(); nb.pages.forEach(pg => Array.isArray(pg) && pg.forEach(x => x.c = false)); persist(); render(); },
   delPage() {
     const nb = nbCur(), p = S.ui.nbPage || 0;
-    if (nb.pages.length === 1) { nb.pages = [nb.kind === 'shop' ? [] : '']; }
-    else { if (!confirm('Видалити цю сторінку?')) return; nb.pages.splice(p, 1); S.ui.nbPage = Math.max(0, p - 1); }
+    if (nb.pages.length <= 1) nb.pages = [nbEmpty(nb)];
+    else { if (!confirm(nbSpread() ? 'Видалити ці дві сторінки?' : 'Видалити цю сторінку?')) return; nb.pages.splice(p, nbSpread() ? 2 : 1); if (!nb.pages.length) nb.pages = [nbEmpty(nb)]; S.ui.nbPage = Math.max(0, Math.min(p, nb.pages.length - 1)); if (nbSpread()) S.ui.nbPage -= S.ui.nbPage % 2; }
     persist(); render();
   },
   edit(id) {
@@ -1375,28 +1503,27 @@ window.NB = {
   },
   save(id) {
     const name = val('nb-name'); if (!name) return toast('Назви зошит');
-    const cover = (document.querySelector('#nb-covers .popt.on') || {}).dataset?.v || 'leopard';
+    const on = document.querySelector('#nb-covers .popt.on'); const cover = on ? on.dataset.v : 'leopard';
     if (id) Object.assign(notebooks().find(n => n.id === id), { name, cover });
     else { const kind = segVal('nb-kind') || 'text'; notebooks().push({ id: uid(), name, cover, kind, pages: [kind === 'shop' ? [] : ''] }); }
     closeModal(); commit();
   },
   del(id) { if (!confirm('Видалити зошит з усіма записами?')) return; S.notebooks = notebooks().filter(n => n.id !== id); S.ui.nbOpen = null; closeModal(); commit(); },
-  swipe(stage) {
-    let x0, y0;
-    stage.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
-    stage.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null; if (Math.abs(dx) > 60 && Math.abs(dy) < 50) NB.go((S.ui.nbPage || 0) + (dx < 0 ? 1 : -1)); }, { passive: true });
-  },
 };
+// перехід між «розворотом» і однією сторінкою при зміні ширини вікна
+let nbWasSpread = nbSpread();
+addEventListener('resize', () => { const s = nbSpread(); if (s !== nbWasSpread && S.ui.view === 'notes' && nbCur()) { nbWasSpread = s; if (s) S.ui.nbPage -= (S.ui.nbPage || 0) % 2; render(); } nbWasSpread = s; });
+
 function vNotes() {
   const nb = nbCur();
   if (nb) {
-    const p = Math.min(S.ui.nbPage || 0, nb.pages.length - 1); S.ui.nbPage = p;
-    setTimeout(() => { const st = $('#nb-stage'); st && NB.swipe(st); }, 0);
-    return `<div class="nb-top"><button class="btn ghost sm" onclick="NB.close()">‹ Полиця</button><h2>${esc(nb.name)}</h2><span class="muted small" id="nb-count">${p + 1} / ${nb.pages.length}</span><span style="flex:1"></span>
-      ${nb.kind === 'shop' ? `<button class="btn ghost sm" onclick="NB.uncheck()">Зняти галочки</button><button class="btn sm" onclick="NB.copy()">📋 Скопіювати відмічене</button>` : `<button class="btn ghost sm" onclick="NB.copy()">📋 Скопіювати сторінку</button>`}
+    let p = Math.min(S.ui.nbPage || 0, nb.pages.length - 1); if (nbSpread()) p -= p % 2; S.ui.nbPage = p;
+    setTimeout(() => { const st = $('#nb-stage'); if (st) { nbBind(st); nbCount(); st.querySelectorAll('.nb-ta').forEach(ta => NB.fit(ta)); } }, 0);
+    return `<div class="nb-top"><button class="btn ghost sm" onclick="NB.close()">‹ Полиця</button><h2>${esc(nb.name)}</h2><span class="muted small" id="nb-count"></span><span style="flex:1"></span>
+      ${nb.kind === 'shop' ? `<button class="btn ghost sm" onclick="NB.uncheck()">Зняти галочки</button><button class="btn sm" onclick="NB.copy()">📋 Скопіювати відмічене</button>` : `<button class="btn ghost sm" onclick="NB.copy()">📋 Скопіювати</button>`}
       <button class="act" title="Видалити сторінку" onclick="NB.delPage()">🗑</button><button class="act" title="Назва й обкладинка" onclick="NB.edit('${nb.id}')">✎</button></div>
-      <div class="nb-stage" id="nb-stage">${nbPageHTML(nb, p)}</div>
-      <div class="nb-nav"><button class="btn ghost sm" onclick="NB.go((S.ui.nbPage||0)-1)">‹ Назад</button><span class="muted tiny">гортай свайпом або тисни на куточок</span><button class="btn ghost sm" onclick="NB.go((S.ui.nbPage||0)+1)">Далі ›</button></div>`;
+      ${nbStageHTML(nb)}
+      <div class="nb-nav"><button class="btn ghost sm" onclick="NB.go(-1)">‹ Назад</button><span class="muted tiny">потягни за край сторінки або натисни на куточок</span><button class="btn ghost sm" onclick="NB.go(1)">Далі ›</button></div>`;
   }
   return `<div class="card-h" style="margin:4px 2px 14px"><h2>📓 Мої зошити</h2><button class="btn sm" onclick="NB.edit()">+ Новий зошит</button></div>
     <div class="shelf">${notebooks().map(n => `<button class="nb-cover" onclick="NB.open('${n.id}')" style="background-image:url(notebook/cover-${n.cover}.jpg)"><span class="nb-label"><b>${esc(n.name)}</b><i></i><i></i><small>${n.kind === 'shop' ? '🛒 список' : `${n.pages.length} ${plural(n.pages.length, 'сторінка', 'сторінки', 'сторінок')}`}</small></span></button>`).join('')}</div>`;

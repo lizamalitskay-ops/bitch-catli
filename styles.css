@@ -418,3 +418,33 @@ body[data-view="notes"]{--tab:#a84862}
 @media(max-width:480px){.nb-ta,.nb-rows{left:62px;right:10px}.paper{background-position:-6px 0,0 64px,0 0}.holes{left:12px}.nb-head{left:66px}.nb-ta,.nb-in{font-size:22px}}
 
 .nb-ta:focus-visible,.nb-in:focus-visible{outline:none}
+
+/* ── записник 2: розворот, листок, що перегортається ── */
+.nb-stage{position:relative;perspective:3400px;margin:0 auto;height:666px}
+.nb-stage.single{max-width:720px}
+.nb-stage.spread{max-width:1140px}
+.nb-slot{position:absolute;top:0;bottom:0}
+.nb-slot.full{left:0;right:0}.nb-slot.left{left:0;width:50%}.nb-slot.right{left:50%;width:50%}
+.nb-sheet{position:absolute;inset:0}
+.nb-slot.left .paper{border-radius:10px 2px 2px 10px}
+.nb-slot.right .paper{border-radius:2px 10px 10px 2px}
+.nb-spine{position:absolute;top:0;bottom:0;left:calc(50% - 22px);width:44px;z-index:4;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(60,40,10,.18) 40%,rgba(40,25,5,.35) 50%,rgba(60,40,10,.18) 60%,transparent)}
+.nb-leaf{position:absolute;top:0;bottom:0;z-index:6;transform-style:preserve-3d;will-change:transform}
+.nb-leaf.on-right{left:50%;width:50%;transform-origin:left center}
+.nb-leaf.on-left{left:0;width:50%;transform-origin:right center}
+.nb-leaf.on-full{left:0;width:100%;transform-origin:left center}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.face.back{transform:rotateY(180deg)}
+.nb-leaf .paper{box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.nb-shade{position:absolute;inset:0;pointer-events:none;opacity:0;border-radius:inherit}
+.nb-leaf .face.front .nb-shade{opacity:var(--fs,0);background:linear-gradient(90deg,rgba(0,0,0,.05),rgba(0,0,0,.5))}
+.nb-leaf.on-left .face.front .nb-shade{background:linear-gradient(270deg,rgba(0,0,0,.05),rgba(0,0,0,.5))}
+.nb-leaf .face.back .nb-shade{opacity:var(--fs,0);background:linear-gradient(270deg,rgba(255,255,255,.25),rgba(0,0,0,.35))}
+.paper.blank{background:linear-gradient(90deg,#efe0a0,#f8eeb6)}
+.nb-cast{position:absolute;top:0;bottom:0;z-index:5;pointer-events:none;opacity:0;background:linear-gradient(90deg,rgba(0,0,0,.45),rgba(0,0,0,0) 70%)}
+.nb-stage .grab{position:absolute;top:0;bottom:56px;width:28px;z-index:7;cursor:grab;touch-action:none}
+.nb-stage .grab.r{right:0}.nb-stage .grab.l{left:0}
+.nb-stage .grab:hover{background:linear-gradient(90deg,transparent,rgba(0,0,0,.06))}
+.nb-stage .grab.l:hover{background:linear-gradient(270deg,transparent,rgba(0,0,0,.06))}
+.nb-stage .curl{z-index:7;touch-action:none}
+.nb-stage .curl.next{right:0}.nb-stage .curl.prev{left:0}
