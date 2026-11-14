@@ -53,7 +53,7 @@ const accIcon = (k, s = 30) => k === 'cash'
 
 // ── стан ──
 const STORE = 'bc_state_v2';
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 function defaultBudget() {
   const env = n => ({ id: uid(), name: n, amount: 0, carry: 0 });
   const envs = ['Оренда', 'Комуналка', "Інтернет і зв'язок", 'Їжа', 'Кіт', 'Проїзд', 'Гігієна і дім', 'Наступний місяць'].map(env);
@@ -164,7 +164,7 @@ function openModal(html, onOpen, back) {
   o.innerHTML = `<div class="modal" role="dialog">${html}</div>`;
   o.addEventListener('mousedown', e => { if (e.target === o) closeModal(); });
   document.body.appendChild(o);
-  const f = o.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 50);
+  const f = o.querySelector('[autofocus]'); if (f) setTimeout(() => { if (!o.contains(document.activeElement)) f.focus(); }, 50);
   onOpen && onOpen(o);
 }
 function closeModal() { const o = $('#ov'); o && o.remove(); const b = modalBack; modalBack = null; if (b) b(); }
@@ -755,7 +755,7 @@ window.Set_ = {
         <button class="btn ghost sm" onclick="closeModal();Bd.env()">+ Новий конверт</button></div>
       <div class="card"><div class="card-h"><h3>Резервна копія</h3></div><p class="muted tiny" style="margin-bottom:8px">Файл з усіма твоїми даними, про всяк випадок.</p>
         <button class="btn ghost sm" onclick="Set_.export()">⬇ Завантажити</button> <label class="btn ghost sm">⬆ Відновити<input type="file" accept=".json" class="hidden" onchange="Set_.import(this.files[0])"></label></div>
-      <p class="muted tiny" style="margin-top:12px">Версія додатку: ${APP_VERSION}</p><div class="m-foot"><button class="btn" onclick="Set_.save()">Готово</button></div>`);
+      <p class="muted tiny" style="margin-top:12px">Версія додатку: ${APP_VERSION} · зайнято місця в хмарі: ${Math.max(1, Math.round(JSON.stringify(S).length / 10485.76))}%</p><div class="m-foot"><button class="btn" onclick="Set_.save()">Готово</button></div>`);
   },
   save() { S.ui.theme = segVal('s-theme') || 'auto'; const b = B(); b.limits.spontan = num(val('s-lim')) || 2000; b.payday = Math.min(31, Math.max(1, parseInt(val('s-pay')) || 27)); applyTheme(); closeAllModals(); commit(); },
   recurring() {
@@ -819,7 +819,7 @@ function render() {
   document.body.dataset.view = v;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.v === v));
   applyTheme();
-  const html = { today: vToday, goals: vGoals, tasks: vTasks, budget: vBudget, notes: vNotes }[v]();
+  const html = { today: vToday, goals: vGoals, tasks: vTasks, budget: vBudget, stock: vStock, notes: vNotes }[v]();
   const y = scrollY; $('#view').innerHTML = html; scrollTo(0, y);
   $('#fab').classList.toggle('hidden', v !== 'budget');
 }
@@ -885,6 +885,7 @@ function vToday() {
     </section>
     <section class="tex tex-blackcroc a-dl"><div class="card-h"><h2>⚠ Найближчі дедлайни</h2><button class="btn ghost sm" onclick="T.edit(null,'tasks',{deadline:''})">+ Дедлайн</button></div>
       ${dl.map(dlItem).join('') || '<div class="empty">На найближчий тиждень дедлайнів немає 🐆</div>'}
+      ${S.stock && stMust().length ? `<div class="card-h" style="margin-top:16px"><h2 style="font-size:1.15rem">🛒 Обов'язково докупити</h2><button class="btn ghost sm" onclick="S.ui.stSub='buy';go('stock')">Список ›</button></div>${stMustHTML(5)}` : ''}
     </section>
   </div>`;
 }
@@ -1527,6 +1528,278 @@ function vNotes() {
   }
   return `<div class="card-h" style="margin:4px 2px 14px"><h2>📓 Мої зошити</h2><button class="btn sm" onclick="NB.edit()">+ Новий зошит</button></div>
     <div class="shelf">${notebooks().map(n => `<button class="nb-cover" onclick="NB.open('${n.id}')" style="background-image:url(notebook/cover-${n.cover}.jpg)"><span class="nb-label"><b>${esc(n.name)}</b><i></i><i></i><small>${n.kind === 'shop' ? '🛒 список' : `${n.pages.length} ${plural(n.pages.length, 'сторінка', 'сторінки', 'сторінок')}`}</small></span></button>`).join('')}</div>`;
+}
+
+/* ═══════════════ ЗАПАСИ ═══════════════ */
+const ST_STATUS = { ok: ['Є', 'st-ok'], low: ['Майже закінчилось', 'st-low'], out: ['Немає', 'st-out'] };
+const ST_UNITS = ['шт', 'пачка', 'пляшка', 'банка', 'упаковка', 'кг', 'г', 'л', 'мл'];
+function stockData() {
+  if (!S.stock) {
+    const f = (name, print, subs = []) => ({ id: uid(), name, print, subs });
+    S.stock = {
+      folders: [
+        f('Їжа', 'leopard', ['Хлібне', 'Молочне', 'Солодке', "М'ясне", 'Крупи й макарони', 'Овочі й фрукти', 'Консерви', 'Заморожене', 'Спеції й соуси', 'Напої']),
+        f('Гігієна', 'lace'), f('Косметика', 'redcroc'), f('Дім', 'bambi'), f('Кіт', 'leopard2'),
+        f('Одяг і аксесуари', 'blackcroc', ['Одяг', 'Взуття', 'Аксесуари']), f('Хобі', 'zebra'), f('Інше', 'python'),
+      ],
+      items: [], buy: [], style: { colors: [], want: '', avoid: '' },
+    };
+  }
+  return S.stock;
+}
+const stFolder = id => stockData().folders.find(f => f.id === id);
+const stItem = id => stockData().items.find(i => i.id === id);
+function stStatus(it) {
+  if (it.qty != null && it.qty !== '') {
+    const q = +it.qty;
+    if (q <= 0) return 'out';
+    if (it.min != null && it.min !== '' && q < +it.min) return 'low';
+    return 'ok';
+  }
+  return it.status || 'ok';
+}
+const stShort = it => (it.qty != null && it.qty !== '' && it.min != null && it.min !== '') ? Math.max(0, +it.min - +it.qty) : 0;
+const stNeeds = it => stStatus(it) !== 'ok';
+function stQtyText(it) {
+  if (it.qty == null || it.qty === '') return '';
+  const q = +it.qty;
+  let t = `${q % 1 ? q.toFixed(1) : q} ${it.unit || 'шт'}`;
+  if (it.size) { const tot = q * +it.size; t += ` (${tot % 1 ? tot.toFixed(0) : tot} ${it.sizeUnit || 'г'})`; }
+  return t;
+}
+function stAgo(d) { if (!d) return ''; const n = daysBetween(d, today()); return n <= 0 ? 'куплено сьогодні' : n === 1 ? 'куплено вчора' : `куплено ${days(n)} тому`; }
+const stNorm = s => String(s || '').toLowerCase().replace(/[^a-zа-яіїєґ0-9 ]/gi, '').trim();
+const stStem = s => stNorm(s).split(' ').map(w => w.slice(0, Math.max(4, w.length - 2))).join(' ');
+function stFind(name) { const k = stStem(name); if (!k) return null; return stockData().items.find(i => stStem(i.name) === k) || stockData().items.find(i => stStem(i.name).startsWith(k) || k.startsWith(stStem(i.name))); }
+// що треба обов'язково докупити
+const stMust = () => stockData().items.filter(stNeeds).sort((a, b) => (stStatus(a) === 'out' ? 0 : 1) - (stStatus(b) === 'out' ? 0 : 1));
+// автоматично тримаємо такі речі в списку «Купити»
+function stSyncBuy() {
+  const st = stockData();
+  st.items.forEach(it => {
+    const has = st.buy.find(b => b.itemId === it.id);
+    if (stNeeds(it) && !has) st.buy.push({ id: uid(), itemId: it.id, name: it.name, folder: it.folder, qty: stShort(it) || 1, done: false, auto: true });
+    if (!stNeeds(it) && has && has.auto && !has.done) st.buy = st.buy.filter(b => b !== has);
+  });
+}
+const ST_ENV = { 'Їжа': /їж/i, 'Кіт': /кіт/i, 'Гігієна': /гігієн/i, 'Косметика': /гігієн|космет/i, 'Дім': /дім|гігієн/i };
+const ST_CAT = { 'Їжа': 'Їжа', 'Гігієна': 'Гігієна', 'Косметика': 'Косметика', 'Дім': 'Хімія для дому', 'Кіт': 'Кіт', 'Одяг і аксесуари': 'Одяг', 'Хобі': 'Хобі', 'Інше': 'Інше' };
+const stEnvFor = folderName => { const re = ST_ENV[folderName]; return re ? B().envelopes.find(e => re.test(e.name)) : null; };
+
+window.St = {
+  sub(s) { S.ui.stSub = s; persist(false); render(); },
+  fold(id) { S.ui.stFold = S.ui.stFold || {}; S.ui.stFold[id] = !S.ui.stFold[id]; persist(false); render(); },
+  search(v) { S.ui.stQ = v; render(); const s = $('#st-q'); if (s) { s.focus(); s.setSelectionRange(v.length, v.length); } },
+  step(id, d) {
+    const it = stItem(id); if (it.qty == null || it.qty === '') { it.qty = 0; }
+    it.qty = Math.max(0, Math.round((+it.qty + d) * 10) / 10);
+    if (d > 0) it.bought = today();
+    stSyncBuy(); commit();
+    if (d < 0 && stNeeds(it)) toast(stStatus(it) === 'out' ? `«${it.name}» закінчилось → у «Купити»` : `«${it.name}» менше мінімуму → у «Купити»`);
+  },
+  cycle(id) { const it = stItem(id); const o = ['ok', 'low', 'out']; it.status = o[(o.indexOf(stStatus(it)) + 1) % 3]; if (it.status === 'ok') it.bought = it.bought || today(); stSyncBuy(); commit(); },
+  edit(id, preset = {}) {
+    const st = stockData();
+    const it = id ? stItem(id) : { name: preset.name || '', folder: preset.folder || st.folders[0].id, sub: preset.sub || '', qty: '', unit: 'шт', size: '', sizeUnit: 'г', min: '', status: 'ok', place: '', expiry: '', bought: today(), note: '' };
+    const subsOf = fid => (stFolder(fid) || {}).subs || [];
+    openModal(`<h3>${id ? 'Річ у запасах' : 'Нова річ'}</h3>
+      <div class="field"><label>Назва</label><input id="si-name" value="${esc(it.name)}" autofocus oninput="St._dup(this.value,'${id || ''}')"><div id="si-dup" class="tiny warn" style="margin-top:4px"></div></div>
+      <div class="row2"><div class="field"><label>Папка</label><select id="si-folder" onchange="St._subs()">${st.folders.map(f => `<option value="${f.id}" ${f.id === it.folder ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select></div>
+        <div class="field" id="si-subw"><label>Підпапка</label><select id="si-sub"><option value="">—</option>${opts(subsOf(it.folder), it.sub)}</select></div></div>
+      <div class="row2"><div class="field"><label>Скільки є</label><input id="si-qty" inputmode="decimal" value="${it.qty ?? ''}" placeholder="напр. 2"></div>
+        <div class="field"><label>Чого</label><input id="si-unit" list="st-units" value="${esc(it.unit || 'шт')}"><datalist id="st-units">${ST_UNITS.map(u => `<option value="${u}">`).join('')}</datalist></div></div>
+      <div class="row2"><div class="field"><label>В одній (грамовка)</label><input id="si-size" inputmode="decimal" value="${it.size || ''}" placeholder="напр. 400"></div>
+        <div class="field"><label>Одиниця</label>${seg('si-su', { 'г': 'г', 'мл': 'мл', 'шт': 'шт' }, it.sizeUnit || 'г')}</div></div>
+      <div class="row2"><div class="field"><label>Мінімум, щоб завжди було</label><input id="si-min" inputmode="decimal" value="${it.min ?? ''}" placeholder="напр. 1"></div>
+        <div class="field"><label>Стан (якщо не рахуєш)</label>${seg('si-status', { ok: 'Є', low: 'Майже', out: 'Немає' }, it.status || 'ok')}</div></div>
+      <p class="muted tiny" style="margin:-4px 0 10px">Якщо вписала «скільки є», стан рахується сам. Мінімум: коли стане менше, річ з'явиться в «Обов'язково докупити».</p>
+      <div class="row2"><div class="field"><label>Де лежить</label><input id="si-place" list="st-places" value="${esc(it.place || '')}" placeholder="кухня, шафа, ванна…"><datalist id="st-places">${[...new Set(st.items.map(i => i.place).filter(Boolean))].map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+        <div class="field"><label>Придатне до</label><input type="date" id="si-exp" value="${it.expiry || ''}"></div></div>
+      <div class="row2"><div class="field"><label>Куплено</label><input type="date" id="si-bought" value="${it.bought || ''}"></div><div class="field"><label>Нотатка</label><input id="si-note" value="${esc(it.note || '')}"></div></div>
+      <div class="m-foot">${id ? `<button class="btn danger" onclick="St.del('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="St.save('${id || ''}')">Зберегти</button></div>`);
+  },
+  _subs() { const f = stFolder(val('si-folder')); const s = $('#si-sub'); s.innerHTML = `<option value="">—</option>` + opts((f && f.subs) || []); $('#si-subw').classList.toggle('hidden', !(f && f.subs.length)); },
+  _dup(v, id) { const el = $('#si-dup'); if (!el) return; const f = stFind(v); el.textContent = f && f.id !== id && v.trim().length > 2 ? `⚠ Вже є: «${f.name}»${stQtyText(f) ? ' · ' + stQtyText(f) : ''}` : ''; },
+  save(id) {
+    const name = val('si-name'); if (!name) return toast('Назви річ');
+    const q = val('si-qty'), mn = val('si-min');
+    const d = { name, folder: val('si-folder'), sub: val('si-sub'), qty: q === '' ? null : num(q), unit: val('si-unit') || 'шт', size: num(val('si-size')) || null, sizeUnit: segVal('si-su') || 'г', min: mn === '' ? null : num(mn), status: segVal('si-status') || 'ok', place: val('si-place'), expiry: val('si-exp'), bought: val('si-bought'), note: val('si-note') };
+    if (id) Object.assign(stItem(id), d); else stockData().items.push({ id: uid(), ...d });
+    stSyncBuy(); closeModal(); commit();
+  },
+  del(id) { if (!confirm('Видалити річ із запасів?')) return; const undo = snapshot(); const st = stockData(); st.items = st.items.filter(i => i.id !== id); st.buy = st.buy.filter(b => b.itemId !== id); closeModal(); commit(); toast('Видалено', undo); },
+  folderEdit(id) {
+    const f = id ? stFolder(id) : { name: '', subs: [], print: 'leopard' };
+    openModal(`<h3>${id ? 'Папка' : 'Нова папка'}</h3>
+      <div class="field"><label>Назва</label><input id="sf-name" value="${esc(f.name)}" autofocus></div>
+      <div class="field"><label>Підпапки (через кому)</label><textarea id="sf-subs" rows="3">${esc(f.subs.join(', '))}</textarea></div>
+      <div class="field"><label>Вигляд</label><div class="pgrid" id="sf-print">${PKEYS.map(k => `<button type="button" class="popt ${k === f.print ? 'on' : ''}" data-v="${k}" onclick="this.parentNode.querySelectorAll('.popt').forEach(b=>b.classList.toggle('on',b===this))">${folderImg(k, 54)}${PRINTS[k]}</button>`).join('')}</div></div>
+      <div class="m-foot">${id ? `<button class="btn danger" onclick="St.folderDel('${id}')">Видалити</button>` : ''}<button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="St.folderSave('${id || ''}')">Зберегти</button></div>`);
+  },
+  folderSave(id) {
+    const name = val('sf-name'); if (!name) return toast('Назви папку');
+    const subs = val('sf-subs').split(',').map(s => s.trim()).filter(Boolean);
+    const on = document.querySelector('#sf-print .popt.on'); const print = on ? on.dataset.v : 'leopard';
+    if (id) Object.assign(stFolder(id), { name, subs, print }); else stockData().folders.push({ id: uid(), name, subs, print });
+    closeModal(); commit();
+  },
+  folderDel(id) {
+    const st = stockData(); const n = st.items.filter(i => i.folder === id).length;
+    if (!confirm(n ? `У папці ${n} речей. Вони переїдуть в «Інше». Видалити папку?` : 'Видалити папку?')) return;
+    const other = st.folders.find(f => f.name === 'Інше' && f.id !== id) || st.folders.find(f => f.id !== id);
+    st.items.forEach(i => { if (i.folder === id) { i.folder = other.id; i.sub = ''; } });
+    st.buy.forEach(b => { if (b.folder === id) b.folder = other.id; });
+    st.folders = st.folders.filter(f => f.id !== id); closeModal(); commit();
+  },
+  style() {
+    const s = stockData().style;
+    openModal(`<h3>👗 Мій стиль</h3>
+      <div class="field"><label>Кольори, які мені йдуть</label><div class="st-colors" id="sc-list">${s.colors.map((c, i) => `<span class="st-sw" style="background:${c}" title="Прибрати" onclick="stockData().style.colors.splice(${i},1);persist();St.style()"></span>`).join('')}<label class="st-sw add">+<input type="color" class="hidden" onchange="stockData().style.colors.push(this.value);persist();St.style()"></label></div><p class="tiny muted">Натисни на кружечок, щоб прибрати.</p></div>
+      <div class="field"><label>✅ Що я хочу бачити у своєму гардеробі</label><textarea id="sc-want" rows="4">${esc(s.want)}</textarea></div>
+      <div class="field"><label>⛔ Що НЕ купувати</label><textarea id="sc-avoid" rows="3">${esc(s.avoid)}</textarea></div>
+      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Закрити</button><button class="btn" onclick="const s=stockData().style;s.want=val('sc-want');s.avoid=val('sc-avoid');closeModal();commit()">Зберегти</button></div>`);
+  },
+  // ── список «Купити» ──
+  addBuy() {
+    const v = val('sb-inp'); if (!v) return;
+    const st = stockData(), ex = stFind(v);
+    const folder = val('sb-folder') || (ex ? ex.folder : st.folders[st.folders.length - 1].id);
+    st.buy.push({ id: uid(), itemId: ex ? ex.id : null, name: ex ? ex.name : v, folder: ex ? ex.folder : folder, qty: 1, done: false });
+    if (ex && stStatus(ex) === 'ok') toast(`⚠ Вдома вже є «${ex.name}»${stQtyText(ex) ? ': ' + stQtyText(ex) : ''}`);
+    commit(); setTimeout(() => $('#sb-inp') && $('#sb-inp').focus(), 0);
+  },
+  _hint(v) { const el = $('#sb-hint'); if (!el) return; const ex = v.trim().length > 2 && stFind(v); el.innerHTML = ex ? `<span class="${stStatus(ex) === 'ok' ? 'warn' : 'muted'}">${stStatus(ex) === 'ok' ? '⚠ Вдома вже є' : 'Вдома:'} «${esc(ex.name)}» ${stQtyText(ex) || ST_STATUS[stStatus(ex)][0].toLowerCase()}</span>` : ''; },
+  tick(id) { const b = stockData().buy.find(x => x.id === id); b.done = !b.done; persist(); render(); },
+  delBuy(id) { const st = stockData(); st.buy = st.buy.filter(x => x.id !== id); commit(); },
+  qtyBuy(id, v) { const b = stockData().buy.find(x => x.id === id); b.qty = num(v) || 1; persist(); },
+  bought(ids) {
+    const st = stockData();
+    const list = (ids || st.buy.filter(b => b.done).map(b => b.id)).map(id => st.buy.find(b => b.id === id)).filter(Boolean);
+    if (!list.length) return toast('Відміть галочками, що купила');
+    St._bl = list.map(b => b.id);
+    openModal(`<h3>🛍 Купила</h3>
+      ${list.map(b => `<div class="pay"><div class="body"><div>${esc(b.name)}</div><div class="tiny muted">${esc((stFolder(b.folder) || {}).name || '')}</div></div>
+        <input class="st-mini" data-q="${b.id}" inputmode="decimal" value="${b.qty || 1}" title="Скільки купила"><input class="st-mini" data-p="${b.id}" inputmode="decimal" placeholder="₴" oninput="St._bsum()" title="Ціна (необов'язково)"></div>`).join('')}
+      <div class="row2" style="margin-top:10px"><div class="field"><label>Сума за все, ₴</label><input id="sb-total" inputmode="decimal" placeholder="напр. 640"></div><div class="field"><label>Дата</label><input type="date" id="sb-date" value="${today()}"></div></div>
+      <p class="tiny muted" id="sb-sumhint" style="margin:-4px 0 8px">Можна вписати ціну окремих речей, а решта суми розподілиться між іншими.</p>
+      <div class="field"><label>Чим платила</label>${accSeg('f-acc', 'mono')}</div>
+      <div class="field"><label>З конвертів</label>${seg('sb-env', { auto: '✉ Розкласти по конвертах', one: 'З одного конверта', none: 'Без конверта' }, 'auto')}<div id="sb-one" class="hidden" style="margin-top:8px">${envSelect('', '— обери конверт —')}</div></div>
+      <label class="checks"><label><input type="checkbox" id="sb-nobudget"> Не записувати в бюджет (лише оновити запаси)</label></label>
+      <div class="m-foot"><button class="btn ghost" onclick="closeModal()">Скасувати</button><button class="btn" onclick="St.saveBought()">Готово</button></div>`, o => { $('#sb-env').addEventListener('change', () => $('#sb-one').classList.toggle('hidden', segVal('sb-env') !== 'one')); });
+  },
+  _bsum() { let s = 0; document.querySelectorAll('[data-p]').forEach(i => s += num(i.value)); const t = $('#sb-total'); if (t && s && (!t.value || t.dataset.auto)) { t.value = s; t.dataset.auto = 1; } },
+  saveBought() {
+    const st = stockData(), list = St._bl.map(id => st.buy.find(b => b.id === id)).filter(Boolean);
+    const total = num(val('sb-total')), date = val('sb-date') || today(), acc = segVal('f-acc') || 'mono', mode = segVal('sb-env'), oneEnv = val('f-env');
+    const prices = {}, qtys = {};
+    document.querySelectorAll('[data-p]').forEach(i => prices[i.dataset.p] = num(i.value));
+    document.querySelectorAll('[data-q]').forEach(i => qtys[i.dataset.q] = num(i.value) || 1);
+    const undo = snapshot();
+    // оновлюємо запаси
+    list.forEach(b => {
+      let it = b.itemId && stItem(b.itemId);
+      if (!it) { it = { id: uid(), name: b.name, folder: b.folder, sub: '', qty: null, unit: 'шт', size: null, sizeUnit: 'г', min: null, status: 'ok', place: '', expiry: '', note: '' }; st.items.push(it); }
+      if (it.qty != null && it.qty !== '') it.qty = +it.qty + qtys[b.id]; else it.status = 'ok';
+      it.bought = date;
+    });
+    // бюджет
+    if (!checked('sb-nobudget') && total > 0) {
+      const fixed = list.reduce((s, b) => s + (prices[b.id] || 0), 0), free = list.filter(b => !prices[b.id]);
+      const rest = Math.max(0, total - fixed), each = free.length ? rest / free.length : 0;
+      const byFolder = {};
+      list.forEach(b => { const fn = (stFolder(b.folder) || {}).name || 'Інше'; byFolder[fn] = byFolder[fn] || { sum: 0, names: [] }; byFolder[fn].sum += prices[b.id] || each; byFolder[fn].names.push(b.name); });
+      if (!free.length && fixed < total) { const k = Object.keys(byFolder)[0]; byFolder[k].sum += total - fixed; }
+      Object.entries(byFolder).forEach(([fn, o]) => {
+        if (o.sum <= 0) return;
+        const env = mode === 'auto' ? stEnvFor(fn) : mode === 'one' ? envById(oneEnv) : null;
+        addTx({ type: 'expense', amount: Math.round(o.sum * 100) / 100, account: acc, cat: ST_CAT[fn] || 'Інше', sub: '', spend: 'must', envId: env ? env.id : null, date, desc: o.names.join(', '), urgency: URGENCY[0] });
+      });
+    }
+    st.buy = st.buy.filter(b => !St._bl.includes(b.id));
+    stSyncBuy(); closeModal(); commit();
+    toast(`Куплено ${list.length} ${plural(list.length, 'річ', 'речі', 'речей')} ✓${total > 0 && !checked('sb-nobudget') ? ' · записано в бюджет' : ''}`, undo);
+  },
+  quickBuy(itemId) {
+    const st = stockData(); let b = st.buy.find(x => x.itemId === itemId);
+    if (!b) { const it = stItem(itemId); b = { id: uid(), itemId, name: it.name, folder: it.folder, qty: stShort(it) || 1, done: true }; st.buy.push(b); }
+    St.bought([b.id]);
+  },
+};
+
+function stRow(it) {
+  const s = stStatus(it), q = stQtyText(it), counted = it.qty != null && it.qty !== '';
+  const exp = it.expiry ? daysBetween(today(), it.expiry) : null;
+  const meta = [stAgo(it.bought), it.place && '📍 ' + esc(it.place), exp != null && (exp < 0 ? `<span class="bad">прострочено</span>` : exp <= 7 ? `<span class="warn">придатне ще ${days(exp)}</span>` : 'до ' + fmtDate(it.expiry)), it.min != null && it.min !== '' && `мін. ${it.min}`].filter(Boolean).join(' · ');
+  return `<div class="st-row ${ST_STATUS[s][1]}"><span class="st-bar"></span>
+    <div class="body" onclick="St.edit('${it.id}')"><div class="st-name">${esc(it.name)} ${q ? `<span class="st-q">${q}</span>` : ''}</div><div class="tiny muted">${meta}</div></div>
+    ${counted ? `<button class="act st-pm" title="Мінус" onclick="St.step('${it.id}',-1)">−</button><button class="act st-pm" title="Плюс" onclick="St.step('${it.id}',1)">+</button>` : `<button class="st-pill" title="Змінити стан" onclick="St.cycle('${it.id}')">${ST_STATUS[s][0]}</button>`}
+    <button class="act" title="Редагувати" onclick="St.edit('${it.id}')">✎</button></div>`;
+}
+function stMustHTML(limit) {
+  const list = stMust(); const shown = limit ? list.slice(0, limit) : list;
+  return shown.map(it => `<div class="leo-item dl-item"><div style="flex:1;min-width:0"><span class="dl-when ${stStatus(it) === 'out' ? 'bad' : 'warn'}">${stStatus(it) === 'out' ? 'немає' : 'майже'}</span><div class="dl-t">${esc(it.name)}${stShort(it) ? ` · <b>бракує ${stShort(it)}</b>` : ''}</div><div class="tiny" style="opacity:.75">${esc((stFolder(it.folder) || {}).name || '')}${stQtyText(it) && +it.qty > 0 ? ' · є ' + stQtyText(it) : ''}</div></div>
+    <button class="act" title="Купила" onclick="St.quickBuy('${it.id}')">✓</button></div>`).join('') + (limit && list.length > limit ? `<div class="tiny" style="margin-top:6px;opacity:.85">…і ще ${list.length - limit}</div>` : '');
+}
+function vStock() {
+  stockData(); stSyncBuy();
+  const sub = S.ui.stSub || 'stock', st = stockData();
+  const buyN = st.buy.length;
+  const head = `<div class="subtabs">${seg('stsub', { stock: '🧺 Запаси', buy: `🛒 Купити${buyN ? ' · ' + buyN : ''}`, recipes: '🍳 Рецепти' }, sub).replace('class="seg"', 'class="seg" onchange="St.sub(segVal(\'stsub\'))"')}</div>`;
+  if (sub === 'buy') return head + vStockBuy();
+  if (sub === 'recipes') return head + `<section class="tex tex-redcroc"><div class="card-h"><h2>🍳 Рецепти</h2></div><div class="empty">Рецепти з'являться наступним кроком: вставляєш текст рецепта, і додаток показує, що є вдома, а що докупити.</div></section>`;
+  const q = (S.ui.stQ || '').trim();
+  const fold = S.ui.stFold || {};
+  let main;
+  if (q) {
+    const k = stNorm(q), res = st.items.filter(i => stNorm(i.name).includes(k) || stStem(i.name).includes(stStem(q)));
+    main = `<section class="card"><div class="card-h"><h3>Знайдено: ${res.length}</h3></div>${res.map(it => stRow(it)).join('') || `<div class="empty">Вдома такого немає. <button class="btn sm" onclick="St.edit(null,{name:'${esc(q)}'})">+ Додати «${esc(q)}»</button></div>`}</section>`;
+  } else {
+    main = st.folders.map(f => {
+      const items = st.items.filter(i => i.folder === f.id).sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+      const nNeed = items.filter(stNeeds).length, closed = fold[f.id] !== false && fold[f.id] !== undefined ? fold[f.id] : !items.length || true;
+      const isClosed = fold[f.id] === undefined ? true : fold[f.id];
+      const groups = f.subs.length ? [...f.subs, ''].map(s => [s, items.filter(i => (i.sub || '') === s || (s === '' && i.sub && !f.subs.includes(i.sub)))]).filter(g => g[1].length) : [['', items]];
+      return `<div class="folder st-folder ${isClosed ? 'closed' : ''}"><div class="folder-hw"><button class="folder-h" onclick="St.fold('${f.id}')">${folderImg(f.print, 40)}<span>${esc(f.name)}</span><span class="cnt">${items.length}${nNeed ? ` · <span class="warn">${nNeed} докупити</span>` : ''}</span><span class="chev">▾</span></button><button class="act" title="Папка" onclick="St.folderEdit('${f.id}')">✎</button></div>
+        <div class="folder-b">
+          ${/одяг/i.test(f.name) ? stStyleCard() : ''}
+          ${groups.map(([s, list]) => `${s ? `<div class="group-h">${esc(s)}</div>` : (f.subs.length && list.length ? '<div class="group-h">Без підпапки</div>' : '')}${list.map(stRow).join('')}`).join('') || '<div class="empty">Порожньо</div>'}
+          <button class="btn ghost sm" style="margin-top:8px" onclick="St.edit(null,{folder:'${f.id}'})">+ Додати в «${esc(f.name)}»</button></div></div>`;
+    }).join('') + `<button class="btn ghost sm" style="margin-top:12px" onclick="St.folderEdit()">+ Нова папка</button>`;
+  }
+  const exp = st.items.filter(i => i.expiry && daysBetween(today(), i.expiry) <= 7).sort((a, b) => a.expiry.localeCompare(b.expiry));
+  return head + `<div class="st-grid">
+    <div class="st-main">
+      <div class="toolbar"><input id="st-q" placeholder="🔍 Чи є вдома…? (рис, шампунь, батарейки)" value="${esc(q)}" oninput="St.search(this.value)"><button class="btn" onclick="St.edit()">+ Річ</button></div>
+      <div class="legend" style="margin:8px 2px 2px"><span><i class="lg st-ok"></i>є</span><span><i class="lg st-low"></i>майже закінчилось</span><span><i class="lg st-out"></i>немає</span></div>
+      ${main}
+    </div>
+    <aside class="st-side">
+      <section class="tex tex-leopard"><div class="card-h"><h2>⚠ Обов'язково докупити</h2></div>${stMustHTML() || '<div class="empty">Усього вистачає 🐆</div>'}
+        ${stMust().length ? `<button class="btn ghost sm" style="margin-top:10px" onclick="St.sub('buy')">До списку «Купити» ›</button>` : ''}</section>
+      ${exp.length ? `<section class="tex tex-redcroc"><div class="card-h"><h2>⏳ Скоро зіпсується</h2></div>${exp.map(i => `<div class="leo-item">${esc(i.name)} · ${daysBetween(today(), i.expiry) < 0 ? 'прострочено' : 'ще ' + days(daysBetween(today(), i.expiry))}</div>`).join('')}</section>` : ''}
+    </aside></div>`;
+}
+function stStyleCard() {
+  const s = stockData().style, empty = !s.colors.length && !s.want && !s.avoid;
+  return `<div class="st-style" onclick="St.style()"><div class="card-h" style="margin-bottom:6px"><h3>👗 Мій стиль</h3><span class="tiny muted">натисни, щоб ${empty ? 'заповнити' : 'змінити'}</span></div>
+    ${s.colors.length ? `<div class="st-colors">${s.colors.map(c => `<span class="st-sw" style="background:${c}"></span>`).join('')}</div>` : ''}
+    ${s.want ? `<div class="small"><b>✅ Хочу бачити:</b> ${esc(s.want)}</div>` : ''}${s.avoid ? `<div class="small" style="margin-top:4px"><b>⛔ Не купувати:</b> ${esc(s.avoid)}</div>` : ''}
+    ${empty ? '<div class="small muted">Кольори, які тобі йдуть, і що ти хочеш бачити у гардеробі, щоб не купувати зайвого.</div>' : ''}</div>`;
+}
+function vStockBuy() {
+  const st = stockData();
+  const groups = st.folders.map(f => [f, st.buy.filter(b => b.folder === f.id)]).filter(g => g[1].length);
+  const nDone = st.buy.filter(b => b.done).length;
+  return `<div class="st-grid"><div class="st-main">
+    <section class="card"><div class="card-h"><h3>🛒 Що купити</h3></div>
+      <div class="add-inline"><input id="sb-inp" placeholder="Що треба купити…" oninput="St._hint(this.value)" onkeydown="if(event.key==='Enter')St.addBuy()"><select id="sb-folder" style="width:auto"><option value="">папка</option>${st.folders.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select><button class="btn" onclick="St.addBuy()">+</button></div>
+      <div id="sb-hint" class="small" style="margin:-4px 2px 8px"></div>
+      ${groups.map(([f, list]) => `<div class="group-h">${folderImg(f.print, 26)} ${esc(f.name)}</div>${list.map(b => { const it = b.itemId && stItem(b.itemId); const has = it && stStatus(it) === 'ok';
+        return `<div class="trow ${b.done ? 'done' : ''}"><span class="check ${b.done ? 'on' : ''}" onclick="St.tick('${b.id}')"></span><div class="body"><div class="txt">${esc(b.name)}</div><div class="meta">${b.auto ? '<span class="chip warn">мінімум запасу</span>' : ''}${it ? `<span class="chip ${has ? 'warn' : ''}">${has ? '⚠ вдома вже є' : 'вдома'}: ${stQtyText(it) || ST_STATUS[stStatus(it)][0].toLowerCase()}</span>` : ''}</div></div>
+          <input class="st-mini" value="${b.qty || 1}" inputmode="decimal" title="Скільки" onchange="St.qtyBuy('${b.id}',this.value)"><button class="act x" title="Прибрати" onclick="St.delBuy('${b.id}')">×</button></div>`; }).join('')}`).join('') || '<div class="empty">Список порожній 🎉</div>'}
+      ${st.buy.length ? `<div class="toolbar" style="margin-top:12px"><span class="muted small" style="flex:1">Відміть, що поклала в кошик, і натисни «Купила».</span><button class="btn" onclick="St.bought()">✓ Купила${nDone ? ' (' + nDone + ')' : ''}</button></div>` : ''}
+    </section></div>
+    <aside class="st-side"><section class="tex tex-leopard"><div class="card-h"><h2>⚠ Обов'язково докупити</h2></div>${stMustHTML() || '<div class="empty">Усього вистачає 🐆</div>'}</section></aside></div>`;
 }
 
 /* ═══════════════ СТАРТ ═══════════════ */

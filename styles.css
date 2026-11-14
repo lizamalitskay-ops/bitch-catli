@@ -448,3 +448,32 @@ body[data-view="notes"]{--tab:#a84862}
 .nb-stage .grab.l:hover{background:linear-gradient(270deg,transparent,rgba(0,0,0,.06))}
 .nb-stage .curl{z-index:7;touch-action:none}
 .nb-stage .curl.next{right:0}.nb-stage .curl.prev{left:0}
+
+/* ── запаси ── */
+body[data-view="stock"]{--tab:#a23f57}
+.tab[data-v="stock"]{background:#a23f57}
+.tab[data-v="notes"]{background:#b45a70}
+@media(max-width:480px){.tab{font-size:11.5px;padding:8px 3px 10px}}
+.st-grid{display:grid;gap:14px;grid-template-columns:1fr;grid-template-areas:"side" "main"}
+.st-main{grid-area:main;min-width:0}.st-side{grid-area:side;display:flex;flex-direction:column;gap:14px}
+@media(min-width:900px){.st-grid{grid-template-columns:minmax(0,1fr) 360px;grid-template-areas:"main side";align-items:start}.st-side{position:sticky;top:120px}}
+.st-folder .folder-h span:nth-child(2){font-weight:500}
+.st-row{display:flex;align-items:center;gap:8px;padding:8px 6px 8px 0;border-top:1px solid var(--line);position:relative}
+.st-row .body{flex:1;min-width:0;cursor:pointer;padding-left:10px}
+.st-bar{width:6px;align-self:stretch;border-radius:4px;flex-shrink:0}
+.st-ok .st-bar,.lg.st-ok{background:linear-gradient(180deg,#9fd08a,#4f8a3a)}
+.st-low .st-bar,.lg.st-low{background:linear-gradient(180deg,#ffd27a,#c9861d)}
+.st-out .st-bar,.lg.st-out{background:linear-gradient(180deg,#ff8f99,#b3263b)}
+.legend .lg{width:14px;height:8px;border-radius:4px}
+.st-name{font-weight:500}.st-q{font-weight:400;color:var(--text2);font-size:13px;margin-left:4px}
+.st-pm{font-size:18px;font-weight:600;background:var(--surface2);border:1px solid var(--line)}
+.st-pill{font-size:11.5px;padding:4px 10px;border-radius:999px;color:#fff;white-space:nowrap}
+.st-ok .st-pill{background:linear-gradient(90deg,#4f8a3a,#7fae66)}.st-low .st-pill{background:linear-gradient(90deg,#c9861d,#e3a94c)}.st-out .st-pill{background:linear-gradient(90deg,#b3263b,#e0606a)}
+.st-mini{width:64px;padding:6px 8px;text-align:center}
+.st-style{background:var(--surface2);border:1px dashed var(--accent);border-radius:12px;padding:10px 12px;margin:6px 0 10px;cursor:pointer}
+.st-colors{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.st-sw{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 6px rgba(0,0,0,.3);display:inline-grid;place-items:center;cursor:pointer}
+.st-sw.add{background:var(--surface);color:var(--text2);font-size:18px;border-style:dashed}
+
+.add-inline select{max-width:120px;flex-shrink:0}
+.add-inline input{min-width:0}
